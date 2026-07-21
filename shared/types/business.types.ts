@@ -1,5 +1,15 @@
-import { ArticleDimension } from "../components/forms/ArticleDimensionForm";
-import { VehicleType } from "../services/vehicle-validation.service";
+// Types définis inline (équivalents aux types web — chemins non disponibles dans le mobile)
+export interface ArticleDimension {
+    id: string;
+    nom: string;
+    longueur?: number;
+    largeur?: number;
+    hauteur?: number;
+    poids?: number;
+    quantite: number;
+}
+
+export type VehicleType = '1M3' | '6M3' | '10M3' | '20M3';
 
 export interface ClientInfo {
     nom: string;

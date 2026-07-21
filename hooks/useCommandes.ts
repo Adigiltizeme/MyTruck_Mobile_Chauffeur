@@ -126,21 +126,35 @@ export const useCommandes = ({
       isConnectingRef.current = false;
     });
 
-    // ─── Événements temps réel — utilise les refs pour éviter les stale closures ───
+    // ─── Événements temps réel — noms correspondant au helper backend (EntityType-EntityAction) ───
     socket.on('commande-updated', (data: any) => {
       console.log('📦 [useCommandes] commande-updated:', data?.action);
       loadCommandesRef.current();
       onCommandeUpdatedRef.current?.(data);
     });
 
-    socket.on('commande-status-changed', (data: any) => {
-      console.log('🔄 [useCommandes] commande-status-changed:', data?.commandeId);
+    socket.on('commande-created', (data: any) => {
+      console.log('📦 [useCommandes] commande-created:', data?.entityId);
+      loadCommandesRef.current();
+      onCommandeUpdatedRef.current?.(data);
+    });
+
+    socket.on('commande-deleted', (data: any) => {
+      console.log('🗑️ [useCommandes] commande-deleted:', data?.entityId);
+      loadCommandesRef.current();
+      onCommandeUpdatedRef.current?.(data);
+    });
+
+    // EntityAction.STATUS_CHANGED = 'status_changed' → 'commande-status_changed'
+    socket.on('commande-status_changed', (data: any) => {
+      console.log('🔄 [useCommandes] commande-status_changed:', data?.entityId);
       loadCommandesRef.current();
       onCommandeStatusChangedRef.current?.(data);
     });
 
-    socket.on('commande-chauffeurs-assigned', (data: any) => {
-      console.log('🚛 [useCommandes] commande-chauffeurs-assigned:', data?.commandeId);
+    // EntityAction.ASSIGNED = 'assigned' → 'commande-assigned'
+    socket.on('commande-assigned', (data: any) => {
+      console.log('🚛 [useCommandes] commande-assigned:', data?.entityId);
       loadCommandesRef.current();
       onCommandeChauffeurAssignedRef.current?.(data);
     });

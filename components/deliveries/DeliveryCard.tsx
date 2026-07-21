@@ -28,10 +28,10 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
 
   const getStatutLivraisonStyle = (statut: string) => {
     const styles = {
-      'EN_ATTENTE': 'bg-blue-300 text-blue-900',
+      'EN ATTENTE': 'bg-blue-300 text-blue-900',
       'CONFIRMEE': 'bg-indigo-300 text-indigo-900',
       'ENLEVEE': 'bg-purple-300 text-purple-900',
-      'EN_COURS': 'bg-yellow-300 text-yellow-900',
+      'EN COURS DE LIVRAISON': 'bg-yellow-300 text-yellow-900',
       'LIVREE': 'bg-green-300 text-green-900',
       'ANNULEE': 'bg-red-300 text-red-900',
       'ECHEC': 'bg-red-200 text-red-900',
@@ -99,7 +99,7 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
           <Text style={styles.gridLabel}>Statut livraison:</Text>
           <View style={[styles.badge, getBadgeColors(statutLivClass)]}>
             <Text style={[styles.badgeText, getBadgeTextColor(statutLivClass)]}>
-              {commande.statutLivraison || 'EN_ATTENTE'}
+              {commande.statutLivraison || 'EN ATTENTE'}
             </Text>
           </View>
         </View>

@@ -290,27 +290,27 @@ const ChronologieTab: React.FC<{ commande: Commande }> = () => (
 // ─── Onglet Actions — Timeline + GPS + Rapports + Preuves ────────────────
 
 const TIMELINE_STEPS = [
-  { status: 'EN_ATTENTE', label: 'Commande en attente',        actionLabel: 'À confirmer' },
-  { status: 'CONFIRMEE',  label: 'Prise en charge confirmée',  actionLabel: 'Confirmée' },
-  { status: 'ENLEVEE',    label: 'Enlèvement effectué',        actionLabel: 'Enlevée' },
-  { status: 'EN_COURS',   label: 'En cours de livraison',      actionLabel: 'En cours' },
-  { status: 'LIVREE',     label: 'Livraison effectuée',        actionLabel: 'Livrée' },
+  { status: 'EN ATTENTE',           label: 'Commande en attente',        actionLabel: 'À confirmer' },
+  { status: 'CONFIRMEE',            label: 'Prise en charge confirmée',  actionLabel: 'Confirmée' },
+  { status: 'ENLEVEE',              label: 'Enlèvement effectué',        actionLabel: 'Enlevée' },
+  { status: 'EN COURS DE LIVRAISON', label: 'En cours de livraison',     actionLabel: 'En cours' },
+  { status: 'LIVREE',               label: 'Livraison effectuée',        actionLabel: 'Livrée' },
 ] as const;
 
-const STATUS_ORDER = ['EN_ATTENTE', 'CONFIRMEE', 'ENLEVEE', 'EN_COURS', 'LIVREE'];
+const STATUS_ORDER = ['EN ATTENTE', 'CONFIRMEE', 'ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE'];
 
 const getNextAction = (
   statut: string
 ): { label: string; nextStatus: StatutLivraison; color: string } | null => {
   switch (statut) {
-    case 'EN_ATTENTE':
-      return { label: 'Confirmer la prise en charge', nextStatus: 'CONFIRMEE', color: '#3B82F6' };
+    case 'EN ATTENTE':
+      return { label: 'Confirmer la prise en charge', nextStatus: 'CONFIRMEE',             color: '#3B82F6' };
     case 'CONFIRMEE':
-      return { label: 'Marquer enlevée',              nextStatus: 'ENLEVEE',   color: '#8B5CF6' };
+      return { label: 'Marquer enlevée',              nextStatus: 'ENLEVEE',               color: '#8B5CF6' };
     case 'ENLEVEE':
-      return { label: 'Démarrer la livraison',        nextStatus: 'EN_COURS',  color: '#F59E0B' };
-    case 'EN_COURS':
-      return { label: 'Confirmer la livraison',       nextStatus: 'LIVREE',    color: '#10B981' };
+      return { label: 'Démarrer la livraison',        nextStatus: 'EN COURS DE LIVRAISON', color: '#F59E0B' };
+    case 'EN COURS DE LIVRAISON':
+      return { label: 'Confirmer la livraison',       nextStatus: 'LIVREE',                color: '#10B981' };
     default:
       return null;
   }
@@ -342,10 +342,10 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   const isCancelled = statut === 'ANNULEE' || statut === 'ECHEC';
 
   // ── Visibilité contextuelle ──
-  const showMagasinContact = ['EN_ATTENTE', 'CONFIRMEE'].includes(statut);
-  const showClientContact  = ['ENLEVEE', 'EN_COURS', 'LIVREE'].includes(statut);
+  const showMagasinContact = ['EN ATTENTE', 'CONFIRMEE'].includes(statut);
+  const showClientContact  = ['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE'].includes(statut);
   const canRapportEnlev    = ['CONFIRMEE', 'ENLEVEE'].includes(statut);
-  const canRapportLiv      = ['EN_COURS', 'LIVREE', 'ECHEC'].includes(statut);
+  const canRapportLiv      = ['EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(statut);
 
   // ── Adresses complètes pour navigation ──
   const magasinAddress = commande.magasin
@@ -720,7 +720,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                 )}
               </TouchableOpacity>
 
-              {statut === 'EN_COURS' && (
+              {statut === 'EN COURS DE LIVRAISON' && (
                 <>
                   <TouchableOpacity
                     style={styles.secondaryButton}

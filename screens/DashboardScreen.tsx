@@ -162,8 +162,8 @@ export default function DashboardScreen() {
   const metrics = useMemo(() => {
     const total = filteredCommandes.length;
     const livrees = filteredCommandes.filter((c) => c.statutLivraison === 'LIVREE').length;
-    const enCours = filteredCommandes.filter((c) => c.statutLivraison === 'EN_COURS').length;
-    const enAttente = filteredCommandes.filter((c) => c.statutLivraison === 'EN_ATTENTE').length;
+    const enCours = filteredCommandes.filter((c) => c.statutLivraison === 'EN COURS DE LIVRAISON').length;
+    const enAttente = filteredCommandes.filter((c) => c.statutLivraison === 'EN ATTENTE').length;
     const performance = total > 0 ? Math.round((livrees / total) * 100) : 0;
 
     // ✅ Historique DYNAMIQUE selon filtre actif
@@ -209,8 +209,8 @@ export default function DashboardScreen() {
         historique.push({
           date: dateStr,
           totalLivraisons: commandesJour.filter((c) => c.statutLivraison === 'LIVREE').length,
-          enCours: commandesJour.filter((c) => c.statutLivraison === 'EN_COURS').length,
-          enAttente: commandesJour.filter((c) => c.statutLivraison === 'EN_ATTENTE').length,
+          enCours: commandesJour.filter((c) => c.statutLivraison === 'EN COURS DE LIVRAISON').length,
+          enAttente: commandesJour.filter((c) => c.statutLivraison === 'EN ATTENTE').length,
           rawDate: date.getTime(),
         });
       }
@@ -240,8 +240,8 @@ export default function DashboardScreen() {
             historique.push({
               date: creneau,
               totalLivraisons: commandesCreneau.filter((c) => c.statutLivraison === 'LIVREE').length,
-              enCours: commandesCreneau.filter((c) => c.statutLivraison === 'EN_COURS').length,
-              enAttente: commandesCreneau.filter((c) => c.statutLivraison === 'EN_ATTENTE').length,
+              enCours: commandesCreneau.filter((c) => c.statutLivraison === 'EN COURS DE LIVRAISON').length,
+              enAttente: commandesCreneau.filter((c) => c.statutLivraison === 'EN ATTENTE').length,
               rawDate: h,
             });
           }
@@ -263,8 +263,8 @@ export default function DashboardScreen() {
             historique.push({
               date: dateStr,
               totalLivraisons: commandesJour.filter((c) => c.statutLivraison === 'LIVREE').length,
-              enCours: commandesJour.filter((c) => c.statutLivraison === 'EN_COURS').length,
-              enAttente: commandesJour.filter((c) => c.statutLivraison === 'EN_ATTENTE').length,
+              enCours: commandesJour.filter((c) => c.statutLivraison === 'EN COURS DE LIVRAISON').length,
+              enAttente: commandesJour.filter((c) => c.statutLivraison === 'EN ATTENTE').length,
               rawDate: date.getTime(),
             });
           }
@@ -286,8 +286,8 @@ export default function DashboardScreen() {
             historique.push({
               date: dateStr,
               totalLivraisons: commandesJour.filter((c) => c.statutLivraison === 'LIVREE').length,
-              enCours: commandesJour.filter((c) => c.statutLivraison === 'EN_COURS').length,
-              enAttente: commandesJour.filter((c) => c.statutLivraison === 'EN_ATTENTE').length,
+              enCours: commandesJour.filter((c) => c.statutLivraison === 'EN COURS DE LIVRAISON').length,
+              enAttente: commandesJour.filter((c) => c.statutLivraison === 'EN ATTENTE').length,
               rawDate: date.getTime(),
             });
           }
@@ -308,8 +308,8 @@ export default function DashboardScreen() {
             historique.push({
               date: moisNoms[moisIndex],
               totalLivraisons: commandesMois.filter((c) => c.statutLivraison === 'LIVREE').length,
-              enCours: commandesMois.filter((c) => c.statutLivraison === 'EN_COURS').length,
-              enAttente: commandesMois.filter((c) => c.statutLivraison === 'EN_ATTENTE').length,
+              enCours: commandesMois.filter((c) => c.statutLivraison === 'EN COURS DE LIVRAISON').length,
+              enAttente: commandesMois.filter((c) => c.statutLivraison === 'EN ATTENTE').length,
               rawDate: moisIndex,
             });
           }

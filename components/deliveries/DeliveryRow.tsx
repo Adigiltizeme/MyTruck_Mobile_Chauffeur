@@ -34,13 +34,13 @@ export const DeliveryRow: React.FC<DeliveryRowProps> = ({ commande, isExpanded, 
 
   const getStatutLivraisonStyle = (statut: string) => {
     switch (statut) {
-      case 'EN_ATTENTE':
+      case 'EN ATTENTE':
         return { bg: '#DBEAFE', text: '#1E40AF' };
       case 'CONFIRMEE':
         return { bg: '#C7D2FE', text: '#3730A3' };
       case 'ENLEVEE':
         return { bg: '#DDD6FE', text: '#5B21B6' };
-      case 'EN_COURS':
+      case 'EN COURS DE LIVRAISON':
         return { bg: '#FEF08A', text: '#854D0E' };
       case 'LIVREE':
         return { bg: '#BBF7D0', text: '#14532D' };

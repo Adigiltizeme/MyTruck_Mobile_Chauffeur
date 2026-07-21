@@ -4,7 +4,7 @@
  * Référence : frontend/src/pages/Deliveries/Deliveries.tsx lignes 898-972
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,7 @@ export const DeliveriesScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [selectedCommandeId, setSelectedCommandeId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
 
   // Filtrage IDENTIQUE version web (lignes 81-120)
   const filteredCommandes = useMemo(() => {
@@ -177,75 +178,65 @@ export const DeliveriesScreen: React.FC = () => {
         </Text>
       </View>
 
-      {/* Barre de recherche */}
-      <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Rechercher..."
-          value={searchText}
-          onChangeText={setSearchText}
-          placeholderTextColor="#9CA3AF"
-        />
-        {searchText.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
-            <Ionicons name="close-circle" size={20} color="#9CA3AF" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* ✅ OPTIMISATION : Onglets en grille 2x2 (comme web mobile ligne 699) */}
-      <View style={styles.tabsGrid}>
+      {/* Barre de recherche + toggle filtres — ligne compacte */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={16} color="#9CA3AF" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher..."
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholderTextColor="#9CA3AF"
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
         <TouchableOpacity
-          style={[styles.tabGridItem, activeTab === 'all' && styles.tabGridItemActive]}
-          onPress={() => setActiveTab('all')}
+          style={[styles.filterToggle, filtersExpanded && styles.filterToggleActive]}
+          onPress={() => setFiltersExpanded(v => !v)}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabGridText, activeTab === 'all' && styles.tabGridTextActive]}>
-            Toutes
-          </Text>
-          <Text style={[styles.tabGridCount, activeTab === 'all' && styles.tabGridCountActive]}>
-            ({tabCounts.all})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabGridItem, activeTab === 'today' && styles.tabGridItemActive]}
-          onPress={() => setActiveTab('today')}
-        >
-          <Text style={[styles.tabGridText, activeTab === 'today' && styles.tabGridTextActive]}>
-            Aujourd'hui
-          </Text>
-          <Text style={[styles.tabGridCount, activeTab === 'today' && styles.tabGridCountActive]}>
-            ({tabCounts.today})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabGridItem, activeTab === 'upcoming' && styles.tabGridItemActive]}
-          onPress={() => setActiveTab('upcoming')}
-        >
-          <Text style={[styles.tabGridText, activeTab === 'upcoming' && styles.tabGridTextActive]}>
-            À venir
-          </Text>
-          <Text
-            style={[styles.tabGridCount, activeTab === 'upcoming' && styles.tabGridCountActive]}
-          >
-            ({tabCounts.upcoming})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabGridItem, activeTab === 'history' && styles.tabGridItemActive]}
-          onPress={() => setActiveTab('history')}
-        >
-          <Text style={[styles.tabGridText, activeTab === 'history' && styles.tabGridTextActive]}>
-            Historique
-          </Text>
-          <Text style={[styles.tabGridCount, activeTab === 'history' && styles.tabGridCountActive]}>
-            ({tabCounts.history})
-          </Text>
+          <Ionicons
+            name={filtersExpanded ? 'chevron-up' : 'filter'}
+            size={16}
+            color={filtersExpanded ? '#EF4444' : '#6B7280'}
+          />
+          {activeTab !== 'all' && <View style={styles.filterDot} />}
         </TouchableOpacity>
       </View>
+
+      {/* Filtres période — collapsables */}
+      {filtersExpanded && (
+        <View style={styles.tabsRow}>
+          {(['all', 'today', 'upcoming', 'history'] as TabFilter[]).map((tab) => {
+            const labels: Record<TabFilter, string> = {
+              all: 'Toutes',
+              today: "Auj.",
+              upcoming: 'À venir',
+              history: 'Passées',
+            };
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tabChip, activeTab === tab && styles.tabChipActive]}
+                onPress={() => { setActiveTab(tab); setFiltersExpanded(false); }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.tabChipText, activeTab === tab && styles.tabChipTextActive]}>
+                  {labels[tab]}
+                </Text>
+                <Text style={[styles.tabChipCount, activeTab === tab && styles.tabChipCountActive]}>
+                  {tabCounts[tab]}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {/* ✅ OPTIMISATION : FlatList avec pull-to-refresh */}
       <FlatList
@@ -299,72 +290,104 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
-  searchContainer: {
+  // Ligne recherche + bouton filtre
+  searchRow: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    gap: 8,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     color: '#111827',
+    paddingVertical: 0,
   },
   clearButton: {
-    padding: 4,
+    padding: 2,
   },
-  // ✅ NOUVEAU : Grille 2x2 pour onglets
-  tabsGrid: {
-    backgroundColor: '#F3F4F6',
-    padding: 8,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  tabGridItem: {
-    flex: 1,
-    minWidth: '47%',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+  filterToggle: {
+    width: 36,
+    height: 36,
     borderRadius: 8,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
-    borderWidth: 2,
+    justifyContent: 'center',
+  },
+  filterToggleActive: {
+    backgroundColor: '#FEE2E2',
+  },
+  filterDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
+  },
+  // Chips de filtre collapsables
+  tabsRow: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  tabChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
     borderColor: 'transparent',
   },
-  tabGridItemActive: {
-    backgroundColor: '#FFFFFF',
+  tabChipActive: {
+    backgroundColor: '#FEF2F2',
     borderColor: '#EF4444',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  tabGridText: {
-    fontSize: 13,
+  tabChipText: {
+    fontSize: 12,
     fontWeight: '500',
     color: '#6B7280',
-    textAlign: 'center',
   },
-  tabGridTextActive: {
+  tabChipTextActive: {
     color: '#EF4444',
     fontWeight: '600',
   },
-  tabGridCount: {
-    fontSize: 12,
+  tabChipCount: {
+    fontSize: 11,
     color: '#9CA3AF',
-    marginTop: 2,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    overflow: 'hidden',
   },
-  tabGridCountActive: {
+  tabChipCountActive: {
     color: '#EF4444',
-    fontWeight: '600',
+    backgroundColor: '#FEE2E2',
   },
   resultHeader: {
     backgroundColor: '#FFFFFF',
