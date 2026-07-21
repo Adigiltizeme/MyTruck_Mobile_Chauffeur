@@ -92,9 +92,10 @@ export const commandesService = {
     try {
       console.log('📦 [COMMANDES] Update statut livraison:', commandeId, '→', statutLivraison);
 
+      // Le backend attend { statut: ... } via @Body('statut')
       const response = await apiService.patch<Commande>(
         COMMANDES_ENDPOINTS.UPDATE_STATUT_LIVRAISON(commandeId),
-        { statutLivraison }
+        { statut: statutLivraison }
       );
 
       if (response.success) {
@@ -198,7 +199,8 @@ export const commandesService = {
     commandeId: string,
     rapportData: {
       type: RapportType;
-      commentaire?: string;
+      message?: string;
+      chauffeurId?: string;
       signatureChauffeur?: string;
       signatureMagasin?: string;
       signatureClient?: string;

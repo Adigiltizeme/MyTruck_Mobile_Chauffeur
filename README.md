@@ -9,6 +9,7 @@
 ## 🎯 Description
 
 Application mobile React Native pour les chauffeurs My Truck permettant de gérer le workflow complet de livraison en 2 phases :
+
 1. **Retrait** : Enlèvement de la commande au magasin
 2. **Livraison** : Livraison de la commande au client
 
@@ -17,11 +18,13 @@ Application mobile React Native pour les chauffeurs My Truck permettant de gére
 ## 🚀 Démarrage Rapide
 
 ### Prérequis
+
 - Node.js 20+ installé
 - Smartphone Android ou iOS
 - Application **Expo Go** installée sur le téléphone
 
 ### Installation
+
 ```bash
 # Installer les dépendances
 cd mobile-chauffeur
@@ -32,6 +35,7 @@ npx expo start
 ```
 
 ### Tester sur téléphone
+
 1. Ouvrir l'app **Expo Go** sur votre smartphone
 2. Scanner le QR code affiché dans le terminal
 3. L'application se lancera automatiquement
@@ -41,6 +45,7 @@ npx expo start
 ## ✅ Fonctionnalités Implémentées
 
 ### Phase 1 : Infrastructure ✅
+
 - ✅ Projet Expo TypeScript initialisé
 - ✅ Dépendances installées (React Navigation, Axios, Expo modules)
 - ✅ Charte graphique My Truck configurée
@@ -49,6 +54,7 @@ npx expo start
 - ✅ Service Commandes (CRUD + photos + rapports)
 
 ### Phase 2 : Authentification & Navigation ✅
+
 - ✅ **AuthContext** : Gestion état authentification global
 - ✅ **React Navigation** : Stack Navigator configuré
 - ✅ **Écran Login** : Connexion chauffeur avec validation
@@ -59,7 +65,7 @@ npx expo start
 
 ## 📂 Structure du Projet
 
-```
+```dropdown
 mobile-chauffeur/
 ├── constants/
 │   ├── Colors.ts              ✅ Charte graphique My Truck
@@ -85,6 +91,7 @@ mobile-chauffeur/
 ## 🎨 Design System
 
 ### Couleurs My Truck
+
 ```typescript
 Primary (Orange) : #FF6B35   // Boutons, headers
 Secondary (Vert) : #4CAF50   // Succès, livraison
@@ -93,6 +100,7 @@ Info (Bleu)      : #2196F3   // Informations
 ```
 
 ### Phases Visuelles
+
 - **Phase Retrait** : Thème Orange (#FF6B35)
 - **Phase Livraison** : Thème Vert (#4CAF50)
 
@@ -101,14 +109,17 @@ Info (Bleu)      : #2196F3   // Informations
 ## 🔐 Authentification
 
 ### Backend
+
 - **URL** : `https://my-truck-api-production.up.railway.app/api/v1`
 - **Endpoint Login** : `POST /auth/login`
 - **Token** : JWT stocké dans AsyncStorage (clé: `authToken`)
 
 ### Test Login
+
 Pour tester, utilisez les credentials d'un chauffeur existant dans la base de données.
 
 **Exemple** :
+
 ```json
 {
   "email": "chauffeur@mytruck.com",
@@ -123,6 +134,7 @@ Pour tester, utilisez les credentials d'un chauffeur existant dans la base de do
 ## 📱 Écrans Disponibles
 
 ### 1. Login Screen
+
 - ✅ Logo My Truck
 - ✅ Input Email
 - ✅ Input Password (sécurisé)
@@ -131,6 +143,7 @@ Pour tester, utilisez les credentials d'un chauffeur existant dans la base de do
 - ✅ Loading state
 
 ### 2. Dashboard Screen
+
 - ✅ Header avec nom chauffeur
 - ✅ Bouton déconnexion
 - ✅ Liste commandes (FlatList)
@@ -143,6 +156,7 @@ Pour tester, utilisez les credentials d'un chauffeur existant dans la base de do
 - ✅ État vide ("Aucune commande")
 
 ### 3. Retrait Screen ⏳ (À créer)
+
 - Infos magasin (nom, téléphone, adresse)
 - Bouton navigation GPS
 - Liste articles
@@ -152,6 +166,7 @@ Pour tester, utilisez les credentials d'un chauffeur existant dans la base de do
 - Bouton "Confirmer Enlèvement"
 
 ### 4. Livraison Screen ⏳ (À créer)
+
 - Infos client (nom, téléphone, adresse)
 - Bouton navigation GPS
 - Liste articles
@@ -165,12 +180,14 @@ Pour tester, utilisez les credentials d'un chauffeur existant dans la base de do
 ## 🔄 Workflow Complet
 
 ### État Initial
-```
+
+```dropdown
 statutCommande: "Confirmée"
 statutLivraison: "EN_ATTENTE"
 ```
 
 ### Phase 1 : Retrait
+
 1. Chauffeur ouvre commande depuis Dashboard
 2. Affichage écran Retrait avec infos magasin
 3. Navigation GPS vers magasin
@@ -184,12 +201,13 @@ statutLivraison: "EN_ATTENTE"
    - Navigation vers Phase 2
 
 ### Phase 2 : Livraison
-8. Affichage écran Livraison avec infos client
-9. Navigation GPS vers client
-10. Photo de la livraison
-11. Commentaire (optionnel)
-12. Signatures Client + Chauffeur
-13. Clic "Confirmer Livraison"
+
+1. Affichage écran Livraison avec infos client
+2. Navigation GPS vers client
+3. Photo de la livraison
+4. Commentaire (optionnel)
+5. Signatures Client + Chauffeur
+6. Clic "Confirmer Livraison"
     - Upload photo (type: LIVRAISON)
     - Création rapport avec signatures
     - Update `statutLivraison: "LIVRE"`
@@ -237,16 +255,21 @@ npm run lint
 ## 🐛 Debugging
 
 ### Problème : "Network Error" lors du login
+
 **Solution** : Vérifier que le backend Railway est accessible
+
 ```bash
-curl https://my-truck-api-production.up.railway.app/api/v1/auth/login
+curl https://mytruckprojectbackend-production.up.railway.app/api/v1/auth/login
 ```
 
 ### Problème : "Token expired"
+
 **Solution** : Se reconnecter. Le token JWT est stocké dans AsyncStorage.
 
 ### Problème : Écran blanc au démarrage
+
 **Solution** : Vérifier les logs Expo dans le terminal
+
 ```bash
 npx expo start --clear
 ```
@@ -257,33 +280,38 @@ npx expo start --clear
 
 ### Endpoints Utilisés
 
-**Auth**
-```
+#### Auth
+
+```dropdown
 POST /auth/login
 Body: { email, password }
 Response: { token, user }
 ```
 
-**Commandes Chauffeur**
-```
+#### Commandes Chauffeur
+
+```dropdown
 GET /commandes/chauffeur/:chauffeurId
 Response: Commande[]
 ```
 
-**Détail Commande**
-```
+#### Détail Commande
+
+```dropdown
 GET /commandes/:id
 Response: Commande (avec relations)
 ```
 
-**Upload Photo**
-```
+#### Upload Photo
+
+```dropdown
 POST /commandes/:id/photos-livraison
 Body: FormData { photo: File, type: "ENLEVEMENT" | "LIVRAISON" }
 ```
 
-**Créer Rapport**
-```
+#### Créer Rapport
+
+```dropdown
 POST /commandes/:id/rapports
 Body: {
   type: "ENLEVEMENT" | "LIVRAISON",
@@ -299,6 +327,7 @@ Body: {
 ## 🚀 Prochaines Étapes
 
 ### Phase 3 : Workflow Retrait/Livraison
+
 1. Créer écran `RetraitScreen.tsx`
 2. Créer écran `LivraisonScreen.tsx`
 3. Créer composants réutilisables :
@@ -309,12 +338,14 @@ Body: {
 4. Ajouter navigation Dashboard → Retrait → Livraison
 
 ### Phase 4 : GPS Background
+
 1. Créer `services/gps.service.ts`
 2. Implémenter Background Task (Expo Task Manager)
 3. Envoyer position toutes les 30s via WebSocket
 4. Démarrer automatiquement quand `statutLivraison === "EN_COURS"`
 
 ### Phase 5 : Polish & Build
+
 1. Icône app + Splash screen
 2. Tests sur device Android
 3. Gestion erreurs complète
@@ -333,6 +364,7 @@ Body: {
 ## 👨‍💻 Développement
 
 **Tech Stack** :
+
 - React Native + Expo SDK 52
 - TypeScript
 - React Navigation 6
@@ -341,6 +373,7 @@ Body: {
 - Expo Camera, Location, Task Manager
 
 **Conventions** :
+
 - Code en TypeScript strict
 - Commentaires JSDoc pour fonctions complexes
 - Styles StyleSheet (pas de styled-components)
@@ -351,10 +384,11 @@ Body: {
 ## 📞 Support
 
 Pour toute question technique, consulter :
-- Documentation Expo : https://docs.expo.dev/
-- React Navigation : https://reactnavigation.org/
+
+- Documentation Expo : <https://docs.expo.dev/>
+- React Navigation : <https://reactnavigation.org/>
 - Backend My Truck : `my-truck-api/README.md`
 
 ---
 
-**My Truck © 2026 - Version Mobile Chauffeur**
+## My Truck © 2026 - Version Mobile Chauffeur

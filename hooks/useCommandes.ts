@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import io from 'socket.io-client';
 import { StorageService } from '../services/storage.service';
@@ -16,17 +17,9 @@ interface UseCommandesProps {
   onCommandeStatusChanged?: (data: any) => void;
   onCommandeChauffeurAssigned?: (data: any) => void;
   autoConnect?: boolean;
-  autoLoad?: boolean; // ⭐ NOUVEAU: Charger automatiquement les commandes
+  autoLoad?: boolean;
 }
 
-/**
- * Hook pour gérer les commandes du chauffeur avec WebSocket temps réel
- *
- * Événements WebSocket:
- * - commande-updated: Mise à jour générale d'une commande
- * - commande-status-changed: Changement de statut (commande ou livraison)
- * - commande-chauffeurs-assigned: Assignation/réassignation de chauffeurs
- */
 export const useCommandes = ({
   onCommandeUpdated,
   onCommandeStatusChanged,
@@ -38,7 +31,6 @@ export const useCommandes = ({
   const socketRef = useRef<any>(null);
   const isConnectingRef = useRef(false);
 
-  // ⭐ État local des commandes
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,24 +65,32 @@ export const useCommandes = ({
     }
   }, [user]);
 
+  // ─── Ref toujours à jour pour éviter les stale closures dans les listeners ───
+  const loadCommandesRef = useRef(loadCommandes);
+  useEffect(() => {
+    loadCommandesRef.current = loadCommandes;
+  });
+
+  const onCommandeUpdatedRef = useRef(onCommandeUpdated);
+  const onCommandeStatusChangedRef = useRef(onCommandeStatusChanged);
+  const onCommandeChauffeurAssignedRef = useRef(onCommandeChauffeurAssigned);
+  useEffect(() => {
+    onCommandeUpdatedRef.current = onCommandeUpdated;
+    onCommandeStatusChangedRef.current = onCommandeStatusChanged;
+    onCommandeChauffeurAssignedRef.current = onCommandeChauffeurAssigned;
+  });
+
   /**
-   * Connexion WebSocket
+   * Connexion WebSocket — ne dépend que de user pour éviter les reconnexions inutiles
    */
   const connectWebSocket = useCallback(async () => {
-    console.log('🔌 [useCommandes] Connecting WebSocket...', {
-      hasUser: !!user?.id,
-      isConnected: socketRef.current?.connected,
-      isConnecting: isConnectingRef.current,
-    });
-
-    // Éviter connexions multiples
     if (!user?.id || socketRef.current?.connected || isConnectingRef.current) {
       return;
     }
 
     isConnectingRef.current = true;
+    console.log('🔌 [useCommandes] Connecting WebSocket...');
 
-    // ✅ Utiliser StorageService au lieu de localStorage
     const token = await StorageService.getToken();
     if (!token) {
       console.warn('❌ [useCommandes] No auth token, skipping WebSocket');
@@ -98,25 +98,18 @@ export const useCommandes = ({
       return;
     }
 
-    // URL WebSocket (production Railway)
-    const wsUrl = API_BASE_URL;
-    console.log('🔌 [useCommandes] Connecting to:', wsUrl);
-
-    // Créer connexion WebSocket
-    const socket = io(wsUrl, {
+    const socket = io(API_BASE_URL, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'], // polling-first pour Railway
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
     });
 
-    // Événements de connexion
     socket.on('connect', () => {
       console.log('✅ [useCommandes] WebSocket connected:', socket.id);
       isConnectingRef.current = false;
 
-      // Rejoindre la room de l'utilisateur
       socket.emit('join-room', {
         userId: user.id,
         userType: user.role,
@@ -128,35 +121,32 @@ export const useCommandes = ({
       isConnectingRef.current = false;
     });
 
-    socket.on('connect_error', (error: Error) => {
-      console.error('❌ [useCommandes] WebSocket error:', error);
+    socket.on('connect_error', (err: Error) => {
+      console.error('❌ [useCommandes] WebSocket error:', err.message);
       isConnectingRef.current = false;
     });
 
-    // ✅ ÉVÉNEMENTS COMMANDES TEMPS RÉEL
+    // ─── Événements temps réel — utilise les refs pour éviter les stale closures ───
     socket.on('commande-updated', (data: any) => {
-      console.log('📦 [useCommandes] Commande updated:', data);
-      // ⭐ Recharger automatiquement
-      loadCommandes();
-      onCommandeUpdated?.(data);
+      console.log('📦 [useCommandes] commande-updated:', data?.action);
+      loadCommandesRef.current();
+      onCommandeUpdatedRef.current?.(data);
     });
 
     socket.on('commande-status-changed', (data: any) => {
-      console.log('🔄 [useCommandes] Status changed:', data);
-      // ⭐ Recharger automatiquement
-      loadCommandes();
-      onCommandeStatusChanged?.(data);
+      console.log('🔄 [useCommandes] commande-status-changed:', data?.commandeId);
+      loadCommandesRef.current();
+      onCommandeStatusChangedRef.current?.(data);
     });
 
     socket.on('commande-chauffeurs-assigned', (data: any) => {
-      console.log('🚛 [useCommandes] Chauffeurs assigned:', data);
-      // ⭐ Recharger automatiquement
-      loadCommandes();
-      onCommandeChauffeurAssigned?.(data);
+      console.log('🚛 [useCommandes] commande-chauffeurs-assigned:', data?.commandeId);
+      loadCommandesRef.current();
+      onCommandeChauffeurAssignedRef.current?.(data);
     });
 
     socketRef.current = socket;
-  }, [user, loadCommandes, onCommandeUpdated, onCommandeStatusChanged, onCommandeChauffeurAssigned]);
+  }, [user?.id, user?.role]); // Dépend uniquement de l'identité user — pas de loadCommandes
 
   /**
    * Déconnexion WebSocket
@@ -170,35 +160,47 @@ export const useCommandes = ({
     }
   }, []);
 
-  // ⭐ Chargement initial des commandes
+  // ─── Chargement initial ───
   useEffect(() => {
     if (autoLoad && user) {
       loadCommandes();
     }
-  }, [user?.id, autoLoad, loadCommandes]);
+  }, [user?.id, autoLoad]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ⭐ Connexion WebSocket automatique
+  // ─── Connexion WebSocket ───
   useEffect(() => {
     if (autoConnect && user) {
       connectWebSocket();
     }
-
     return () => {
       disconnect();
     };
-  }, [user?.id, autoConnect, connectWebSocket, disconnect]);
+  }, [user?.id, autoConnect]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Refresh au retour au premier plan (AppState) ───
+  useEffect(() => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        console.log('📱 [useCommandes] App active — refreshing commandes');
+        loadCommandesRef.current();
+
+        // Reconnecter le WebSocket si déconnecté
+        if (!socketRef.current?.connected && !isConnectingRef.current && user?.id) {
+          connectWebSocket();
+        }
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [connectWebSocket, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return {
-    // ⭐ Données
     commandes,
     loading,
     error,
-
-    // ⭐ Actions
     loadCommandes,
     refresh: loadCommandes,
-
-    // ⭐ WebSocket
     isConnected: socketRef.current?.connected || false,
     disconnect,
     reconnect: connectWebSocket,

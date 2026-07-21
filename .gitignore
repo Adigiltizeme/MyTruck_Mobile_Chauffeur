@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -39,3 +40,28 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Scripts de debug et maintenance (non destinés au dépôt)
+/check-*.ts
+/check-*.js
+/debug-*.ts
+/debug-*.js
+/test-*.ts
+/test-*.js
+/fix-*.ts
+/analyze-*.ts
+
+# Notes et résumés de sessions de développement
+/SESSION_*.md
+/FIX_*.md
+/DEBUG_*.md
+/MIGRATION_*.md
+/NAVIGATION_*.md
+/SIMPLIFICATION_*.md
+/ARCHITECTURE_*.md
+/CONFIG_*.md
+/PROGRESS.md
+
+# Archives
+*.tar.gz
+*.zip

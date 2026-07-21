@@ -3,13 +3,11 @@
  * URLs et endpoints pour connexion au backend NestJS
  */
 
-// Détection environnement
-const __DEV__ = process.env.NODE_ENV !== 'production';
-
-// URL Backend selon environnement
-export const API_BASE_URL = __DEV__
-  ? 'https://1f40c40bc5e2.ngrok-free.app'  // ← DEV: Backend local via Ngrok tunnel
-  : 'https://mytruckprojectbackend-production.up.railway.app';  // ← PROD: Railway
+// URL Backend depuis variable d'environnement (.env → EXPO_PUBLIC_API_BASE_URL)
+// Fallback Railway si la variable n'est pas définie
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  'https://mytruckprojectbackend-production.up.railway.app';
 
 // Préfixe API v1
 export const API_PREFIX = '/api/v1';
@@ -17,7 +15,6 @@ export const API_PREFIX = '/api/v1';
 // URL complète API
 export const API_URL = `${API_BASE_URL}${API_PREFIX}`;
 
-console.log('🔗 [API] Mode:', __DEV__ ? 'DEVELOPMENT' : 'PRODUCTION');
 console.log('🔗 [API] Base URL:', API_BASE_URL);
 
 // Endpoints Auth

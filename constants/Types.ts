@@ -5,7 +5,7 @@
 
 // Types de statuts
 export type StatutCommande = 'En attente' | 'Confirmée' | 'En cours' | 'Livrée' | 'Annulée';
-export type StatutLivraison = 'EN_ATTENTE' | 'EN_COURS' | 'LIVREE' | 'ANNULEE';
+export type StatutLivraison = 'EN_ATTENTE' | 'CONFIRMEE' | 'ENLEVEE' | 'EN_COURS' | 'LIVREE' | 'ANNULEE' | 'ECHEC';
 export type PhotoType = 'ARTICLE' | 'ENLEVEMENT' | 'LIVRAISON';
 export type RapportType = 'ENLEVEMENT' | 'LIVRAISON';
 
@@ -52,6 +52,8 @@ export interface Client {
   codePostal: string;
   ville: string;
   email?: string;
+  etage?: string;
+  typeAdresse?: string;
 }
 
 // Article

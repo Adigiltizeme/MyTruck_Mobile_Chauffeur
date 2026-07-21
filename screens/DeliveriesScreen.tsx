@@ -136,7 +136,7 @@ export const DeliveriesScreen: React.FC = () => {
         onToggle={() => handleToggleDetails(item.id)}
       />
       {selectedCommandeId === item.id && selectedCommande && (
-        <DeliveryDetails commande={selectedCommande} />
+        <DeliveryDetails commande={selectedCommande} onStatusChanged={refresh} />
       )}
     </View>
   );
