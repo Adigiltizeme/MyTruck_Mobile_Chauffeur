@@ -5,6 +5,7 @@
 
 import apiService from './api.service';
 import commandesTransformerService from './commandes-transformer.service';
+import { uploadPhotoToCloudinary } from './cloudinary.service';
 import { COMMANDES_ENDPOINTS } from '../constants/API';
 import type {
   Commande,
@@ -155,29 +156,20 @@ export const commandesService = {
     type: PhotoType
   ): Promise<ApiResponse<any>> {
     try {
-      console.log('📸 [COMMANDES] Upload photo:', type, commandeId);
+      console.log('📸 [COMMANDES] Upload photo vers Cloudinary:', type, commandeId);
 
-      // Créer FormData
-      const formData = new FormData();
+      // Étape 1 : Upload direct vers Cloudinary (comme le web)
+      const { url, filename } = await uploadPhotoToCloudinary(photoUri);
+      console.log('✅ [COMMANDES] Photo uploadée sur Cloudinary:', url);
 
-      // Extraire nom fichier depuis URI
-      const filename = photoUri.split('/').pop() || `photo_${Date.now()}.jpg`;
-
-      formData.append('photo', {
-        uri: photoUri,
-        type: 'image/jpeg',
-        name: filename,
-      } as any);
-
-      formData.append('type', type);
-
-      const response = await apiService.upload(
+      // Étape 2 : Envoyer l'URL JSON au backend (endpoint attendu : { photos: [{url, filename}] })
+      const response = await apiService.post(
         COMMANDES_ENDPOINTS.ADD_PHOTO(commandeId),
-        formData
+        { photos: [{ url, filename }] }
       );
 
       if (response.success) {
-        console.log('✅ [COMMANDES] Photo uploadée avec succès');
+        console.log('✅ [COMMANDES] Photo enregistrée en base avec succès');
       }
 
       return response;
@@ -201,6 +193,7 @@ export const commandesService = {
       type: RapportType;
       message?: string;
       chauffeurId?: string;
+      photos?: Array<{ url: string; filename?: string }>;
       signatureChauffeur?: string;
       signatureMagasin?: string;
       signatureClient?: string;

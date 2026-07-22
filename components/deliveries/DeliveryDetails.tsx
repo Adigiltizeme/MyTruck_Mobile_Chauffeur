@@ -20,7 +20,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import type { Commande, StatutLivraison, PhotoType } from '../../constants/Types';
 import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import commandesService from '../../services/commandes.service';
+import { uploadPhotoToCloudinary } from '../../services/cloudinary.service';
+import { useAuth } from '../../contexts/AuthContext';
 
 type TabType = 'info' | 'conditions' | 'photos-articles' | 'photos-comments' | 'chronologie' | 'actions';
 
@@ -45,7 +48,7 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
   return (
     <View style={styles.container}>
       {/* En-tête avec statuts */}
-      <View style={styles.header}>
+      {/* <View style={styles.header}>
         <Text style={styles.headerTitle}>Commande #{commande.numeroCommande}</Text>
         <View style={styles.badgesContainer}>
           <View style={[styles.badge, { backgroundColor: statutCmdStyle.bg }]}>
@@ -59,7 +62,7 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
             </Text>
           </View>
         </View>
-      </View>
+      </View> */}
 
       {/* Onglets */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
@@ -320,16 +323,61 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   commande,
   onStatusChanged,
 }) => {
+  const { user } = useAuth();
+
   // ── Statut local (mise à jour optimiste immédiate) ──
   const [localStatut, setLocalStatut] = useState<string>(commande.statutLivraison);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
+
+  // ── Timestamps par statut (chronologie) ──
+  const [statusTimestamps, setStatusTimestamps] = useState<Record<string, Date>>(() => {
+    const initial: Record<string, Date> = {};
+    const misAJour = commande.dates?.misAJour;
+    const isObj = typeof misAJour === 'object' && misAJour !== null;
+
+    // EN ATTENTE → date de création commande
+    const creationDate = commande.dates?.commande || commande.dateCommande;
+    if (creationDate) {
+      initial['EN ATTENTE'] = new Date(creationDate);
+    }
+
+    // CONFIRMEE → dates.misAJour.commande
+    // Correspond à la confirmation de la commande par la direction (même événement business)
+    const commandeUpdateDate = isObj ? (misAJour as any).commande : undefined;
+    if (commandeUpdateDate) {
+      initial['CONFIRMEE'] = new Date(commandeUpdateDate);
+    }
+
+    // Dernier statut "done" (juste avant le statut courant) → dates.misAJour.livraison
+    // dates.misAJour.livraison = quand le statut courant a démarré = quand le précédent s'est terminé
+    const livraisonUpdateDate = isObj ? (misAJour as any).livraison : (misAJour as string | undefined);
+    if (livraisonUpdateDate && commande.statutLivraison) {
+      const currentIdx = STATUS_ORDER.indexOf(commande.statutLivraison);
+      if (currentIdx > 0) {
+        const lastDoneStatus = STATUS_ORDER[currentIdx - 1];
+        // Ne pas écraser un timestamp déjà initialisé (EN ATTENTE ou CONFIRMEE)
+        if (!initial[lastDoneStatus]) {
+          initial[lastDoneStatus] = new Date(livraisonUpdateDate);
+        }
+      }
+    }
+
+    return initial;
+  });
 
   // ── Rapport (un seul formulaire actif à la fois) ──
   const [activeRapportType, setActiveRapportType] = useState<'ENLEVEMENT' | 'LIVRAISON' | null>(null);
   const [rapportMessage, setRapportMessage] = useState('');
   const [loadingRapport, setLoadingRapport] = useState(false);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+
+  // ── Photos rapport (URLs Cloudinary par type) ──
+  const [rapportPhotos, setRapportPhotos] = useState<Record<'ENLEVEMENT' | 'LIVRAISON', Array<{ url: string; filename: string }>>>({
+    ENLEVEMENT: [],
+    LIVRAISON: [],
+  });
+  const [loadingRapportPhoto, setLoadingRapportPhoto] = useState(false);
 
   // Synchroniser avec le prop quand le parent recharge les données
   React.useEffect(() => {
@@ -345,7 +393,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   const showMagasinContact = ['EN ATTENTE', 'CONFIRMEE'].includes(statut);
   const showClientContact  = ['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE'].includes(statut);
   const canRapportEnlev    = ['CONFIRMEE', 'ENLEVEE'].includes(statut);
-  const canRapportLiv      = ['EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(statut);
+  const canRapportLiv      = ['EN COURS DE LIVRAISON', 'ECHEC'].includes(statut);
 
   // ── Adresses complètes pour navigation ──
   const magasinAddress = commande.magasin
@@ -407,6 +455,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
             const res = await commandesService.updateStatutLivraison(commandeId, targetStatus);
             if (res.success) {
               setLocalStatut(targetStatus);
+              setStatusTimestamps(prev => ({ ...prev, [targetStatus]: new Date() }));
               setLoadingAction(false);
               onStatusChanged?.();
             } else {
@@ -439,6 +488,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
             const res = await commandesService.updateStatutLivraison(commandeId, 'ECHEC');
             if (res.success) {
               setLocalStatut('ECHEC');
+              setStatusTimestamps(prev => ({ ...prev, ['ECHEC']: new Date() }));
               setLoadingAction(false);
               onStatusChanged?.();
             } else {
@@ -466,6 +516,44 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     });
   }, []);
 
+  // ── Photo rapport : prendre ou choisir, uploader vers Cloudinary ──
+  const handleRapportPhoto = useCallback(async (
+    type: 'ENLEVEMENT' | 'LIVRAISON',
+    source: 'camera' | 'gallery'
+  ) => {
+    let result: ImagePicker.ImagePickerResult;
+    if (source === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission requise', "Veuillez autoriser l'accès à la caméra");
+        return;
+      }
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+    } else {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission requise', "Veuillez autoriser l'accès à la galerie photo");
+        return;
+      }
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    }
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setLoadingRapportPhoto(true);
+    try {
+      const { url, filename } = await uploadPhotoToCloudinary(result.assets[0].uri);
+      setRapportPhotos(prev => ({
+        ...prev,
+        [type]: [...prev[type], { url, filename }],
+      }));
+    } catch (e: any) {
+      Alert.alert('Erreur upload', e?.message || "Impossible d'uploader la photo");
+    } finally {
+      setLoadingRapportPhoto(false);
+    }
+  }, []);
+
   // ── Création rapport ──
   const handleCreateRapport = useCallback(async () => {
     if (!activeRapportType) return;
@@ -475,15 +563,18 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     }
     setLoadingRapport(true);
     try {
-      const chauffeurId = commande.chauffeurs?.[0]?.id;
+      const chauffeurId = user?.chauffeurId || commande.chauffeurs?.[0]?.id;
+      const photos = rapportPhotos[activeRapportType];
       const res = await commandesService.createRapport(commande.id, {
         type: activeRapportType,
         message: rapportMessage.trim(),
         chauffeurId,
+        photos: photos.length > 0 ? photos : undefined,
       });
       if (res.success) {
         setActiveRapportType(null);
         setRapportMessage('');
+        setRapportPhotos({ ENLEVEMENT: [], LIVRAISON: [] });
         Alert.alert('Rapport créé', 'Le rapport a été créé et la réserve My Truck activée.');
         onStatusChanged?.();
       } else {
@@ -689,7 +780,15 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
 
                 {state === 'done' && isExp && (
                   <View style={styles.stepDetail}>
-                    <Text style={styles.stepDetailText}>{'Étape : ' + step.actionLabel}</Text>
+                    {statusTimestamps[step.status] ? (
+                      <View style={styles.stepDetailRow}>
+                        <Ionicons name="calendar-outline" size={12} color="#6B7280" />
+                        <Text style={styles.stepDetailText}>
+                          {format(statusTimestamps[step.status], "dd MMMM yyyy 'à' HH:mm", { locale: fr })}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text style={styles.stepDetailLabel}>{step.actionLabel}</Text>
                   </View>
                 )}
               </View>
@@ -721,28 +820,15 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               </TouchableOpacity>
 
               {statut === 'EN COURS DE LIVRAISON' && (
-                <>
-                  <TouchableOpacity
-                    style={styles.secondaryButton}
-                    onPress={() => toggleRapport('LIVRAISON')}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="warning-outline" size={15} color="#D97706" />
-                    <Text style={[styles.secondaryButtonText, { color: '#D97706' }]}>
-                      Signaler un problème
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.secondaryButton, styles.echecButton]}
-                    onPress={handleEchecLivraison}
-                    disabled={loadingAction}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close-circle-outline" size={15} color="#DC2626" />
-                    <Text style={styles.secondaryButtonText}>Échec de livraison</Text>
-                  </TouchableOpacity>
-                </>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, styles.echecButton]}
+                  onPress={handleEchecLivraison}
+                  disabled={loadingAction}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close-circle-outline" size={15} color="#DC2626" />
+                  <Text style={styles.secondaryButtonText}>Échec de livraison</Text>
+                </TouchableOpacity>
               )}
             </>
           ) : (
@@ -801,26 +887,28 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                     numberOfLines={3}
                     textAlignVertical="top"
                   />
-                  <Text style={[styles.rapportFormLabel, { marginTop: 10 }]}>Photo (optionnelle)</Text>
+                  <Text style={[styles.rapportFormLabel, { marginTop: 10 }]}>
+                    {'Photo (optionnelle)' + (rapportPhotos.ENLEVEMENT.length > 0 ? ` — ${rapportPhotos.ENLEVEMENT.length} ajoutée(s)` : '')}
+                  </Text>
                   <View style={styles.photoButtonRow}>
                     <TouchableOpacity
                       style={styles.photoButton}
-                      onPress={() => handleTakePhoto('ENLEVEMENT')}
-                      disabled={loadingPhoto}
+                      onPress={() => handleRapportPhoto('ENLEVEMENT', 'camera')}
+                      disabled={loadingRapportPhoto}
                     >
                       <Ionicons name="camera" size={16} color="#6B7280" />
                       <Text style={styles.photoButtonText}>Caméra</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.photoButton}
-                      onPress={() => handlePickPhoto('ENLEVEMENT')}
-                      disabled={loadingPhoto}
+                      onPress={() => handleRapportPhoto('ENLEVEMENT', 'gallery')}
+                      disabled={loadingRapportPhoto}
                     >
                       <Ionicons name="images" size={16} color="#6B7280" />
                       <Text style={styles.photoButtonText}>Galerie</Text>
                     </TouchableOpacity>
                   </View>
-                  {loadingPhoto && (
+                  {loadingRapportPhoto && (
                     <ActivityIndicator size="small" color="#D97706" style={{ marginTop: 6 }} />
                   )}
                   <View style={styles.rapportFormActions}>
@@ -885,26 +973,28 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                     numberOfLines={3}
                     textAlignVertical="top"
                   />
-                  <Text style={[styles.rapportFormLabel, { marginTop: 10 }]}>Photo (optionnelle)</Text>
+                  <Text style={[styles.rapportFormLabel, { marginTop: 10 }]}>
+                    {'Photo (optionnelle)' + (rapportPhotos.LIVRAISON.length > 0 ? ` — ${rapportPhotos.LIVRAISON.length} ajoutée(s)` : '')}
+                  </Text>
                   <View style={styles.photoButtonRow}>
                     <TouchableOpacity
                       style={styles.photoButton}
-                      onPress={() => handleTakePhoto('LIVRAISON')}
-                      disabled={loadingPhoto}
+                      onPress={() => handleRapportPhoto('LIVRAISON', 'camera')}
+                      disabled={loadingRapportPhoto}
                     >
                       <Ionicons name="camera" size={16} color="#6B7280" />
                       <Text style={styles.photoButtonText}>Caméra</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.photoButton}
-                      onPress={() => handlePickPhoto('LIVRAISON')}
-                      disabled={loadingPhoto}
+                      onPress={() => handleRapportPhoto('LIVRAISON', 'gallery')}
+                      disabled={loadingRapportPhoto}
                     >
                       <Ionicons name="images" size={16} color="#6B7280" />
                       <Text style={styles.photoButtonText}>Galerie</Text>
                     </TouchableOpacity>
                   </View>
-                  {loadingPhoto && (
+                  {loadingRapportPhoto && (
                     <ActivityIndicator size="small" color="#DC2626" style={{ marginTop: 6 }} />
                   )}
                   <View style={styles.rapportFormActions}>
@@ -1307,9 +1397,21 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 6,
   },
+  stepDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
   stepDetailText: {
     fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  stepDetailLabel: {
+    fontSize: 11,
     color: '#9CA3AF',
+    marginTop: 1,
   },
   cancelledBanner: {
     flexDirection: 'row',

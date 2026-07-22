@@ -52,9 +52,9 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
   const statutLivClass = getStatutLivraisonStyle(commande.statutLivraison);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isExpanded && styles.cardExpanded]}>
       {/* En-tête carte */}
-      <View style={styles.cardHeader}>
+      <View style={[styles.cardHeader, isExpanded && styles.cardHeaderExpanded]}>
         <View style={styles.headerLeft}>
           <Text style={styles.numeroCommande}>{commande.numeroCommande || 'N/A'}</Text>
           <Text style={styles.clientName}>
@@ -68,42 +68,44 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
         </TouchableOpacity>
       </View>
 
-      {/* Info grid 2 colonnes (identique web) */}
-      <View style={styles.infoGrid}>
-        {/* Date */}
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Date:</Text>
-          <Text style={styles.gridValue}>
-            {formatDateValue(commande.dates?.livraison || commande.dateLivraison)}
-          </Text>
-        </View>
-
-        {/* Créneau */}
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Créneau:</Text>
-          <Text style={styles.gridValue}>{commande.livraison?.creneau || 'N/A'}</Text>
-        </View>
-
-        {/* Statut commande */}
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Statut commande:</Text>
-          <View style={[styles.badge, getBadgeColors(statutCmdClass)]}>
-            <Text style={[styles.badgeText, getBadgeTextColor(statutCmdClass)]}>
-              {commande.statutCommande || 'En attente'}
+      {/* Info grid 2 colonnes — masquée quand les détails sont ouverts */}
+      {!isExpanded && (
+        <View style={styles.infoGrid}>
+          {/* Date */}
+          <View style={styles.gridItem}>
+            <Text style={styles.gridLabel}>Date:</Text>
+            <Text style={styles.gridValue}>
+              {formatDateValue(commande.dates?.livraison || commande.dateLivraison)}
             </Text>
           </View>
-        </View>
 
-        {/* Statut livraison */}
-        <View style={styles.gridItem}>
-          <Text style={styles.gridLabel}>Statut livraison:</Text>
-          <View style={[styles.badge, getBadgeColors(statutLivClass)]}>
-            <Text style={[styles.badgeText, getBadgeTextColor(statutLivClass)]}>
-              {commande.statutLivraison || 'EN ATTENTE'}
-            </Text>
+          {/* Créneau */}
+          <View style={styles.gridItem}>
+            <Text style={styles.gridLabel}>Créneau:</Text>
+            <Text style={styles.gridValue}>{commande.livraison?.creneau || 'N/A'}</Text>
+          </View>
+
+          {/* Statut commande */}
+          <View style={styles.gridItem}>
+            <Text style={styles.gridLabel}>Statut commande:</Text>
+            <View style={[styles.badge, getBadgeColors(statutCmdClass)]}>
+              <Text style={[styles.badgeText, getBadgeTextColor(statutCmdClass)]}>
+                {commande.statutCommande || 'En attente'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Statut livraison */}
+          <View style={styles.gridItem}>
+            <Text style={styles.gridLabel}>Statut livraison:</Text>
+            <View style={[styles.badge, getBadgeColors(statutLivClass)]}>
+              <Text style={[styles.badgeText, getBadgeTextColor(statutLivClass)]}>
+                {commande.statutLivraison || 'EN ATTENTE'}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
+      )}
     </View>
   );
 };
@@ -143,11 +145,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
+  cardExpanded: {
+    marginBottom: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    borderBottomWidth: 0,
+  },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 12,
+  },
+  cardHeaderExpanded: {
+    marginBottom: 0,
   },
   headerLeft: {
     flex: 1,

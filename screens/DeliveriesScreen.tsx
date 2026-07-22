@@ -217,7 +217,7 @@ export const DeliveriesScreen: React.FC = () => {
               all: 'Toutes',
               today: "Auj.",
               upcoming: 'À venir',
-              history: 'Passées',
+              history: 'Historique',
             };
             return (
               <TouchableOpacity

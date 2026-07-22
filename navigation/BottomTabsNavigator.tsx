@@ -44,19 +44,6 @@ export default function BottomTabsNavigator() {
       }}
     >
       <Tab.Screen
-        name="Dashboard"
-        component={DashboardScreen}
-        options={{
-          title: 'Tableau de bord',
-          tabBarLabel: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <Text style={{ fontSize: size, color }}>📊</Text>
-          ),
-          headerShown: false, // DashboardScreen a son propre header
-        }}
-      />
-
-      <Tab.Screen
         name="Deliveries"
         component={DeliveriesScreen}
         options={{
@@ -65,7 +52,20 @@ export default function BottomTabsNavigator() {
           tabBarIcon: ({ color, size }) => (
             <Text style={{ fontSize: size, color }}>🚚</Text>
           ),
-          headerShown: false, // ✅ DeliveriesScreen gère son propre header
+          headerShown: false,
+        }}
+      />
+
+      <Tab.Screen
+        name="Dashboard"
+        component={DashboardScreen}
+        options={{
+          title: 'Tableau de bord',
+          tabBarLabel: 'Dashboard',
+          tabBarIcon: ({ color, size }) => (
+            <Text style={{ fontSize: size, color }}>📊</Text>
+          ),
+          headerShown: false,
         }}
       />
 
