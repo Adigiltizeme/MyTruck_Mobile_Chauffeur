@@ -56,6 +56,7 @@ export interface Client {
   email?: string;
   etage?: string;
   typeAdresse?: string;
+  ascenseur?: boolean;
 }
 
 // Article
@@ -150,6 +151,16 @@ export interface Commande {
   photos?: Photo[];
   rapportsEnlevement?: RapportEnlevement[];
   livraison?: LivraisonInfo;
+
+  // Conditions spéciales (retournées par le backend)
+  rueInaccessible?: boolean;
+  parkingDistance?: number;
+  hasStairs?: boolean;
+  stairCount?: number;
+  needsAssembly?: boolean;
+  isDuplex?: boolean;
+  deliveryToUpperFloor?: boolean;
+  paletteComplete?: boolean;
 
   // Autres champs
   tarifHT?: number;

@@ -24,6 +24,11 @@ export const commandesTransformerService = {
     return {
       ...backendData,
 
+      // ✅ Aplatir la table de jonction ChauffeurSurCommande → tableau Chauffeur plat
+      // Backend retourne: [{ commandeId, chauffeurId, chauffeur: { id, nom, prenom, ... } }]
+      // Mobile attend:    [{ id, nom, prenom, telephone, ... }]
+      chauffeurs: (backendData.chauffeurs || []).map((c: any) => c.chauffeur || c),
+
       // ✅ Structure dates (comme frontend web)
       dates: {
         commande: backendData.dateCommande,
@@ -35,10 +40,8 @@ export const commandesTransformerService = {
       livraison: backendData.livraison || {
         creneau: backendData.creneauLivraison || '',
         vehicule: backendData.categorieVehicule || '',
-        equipiers: backendData.nombreEquipiers || 0,
-        commentaireEnlevement: backendData.commentaireEnlevement || '',
-        commentaireLivraison: backendData.commentaireLivraison || '',
-        reserve: backendData.reserve || false,
+        equipiers: backendData.optionEquipier || 0,
+        reserve: backendData.reserveTransport || false,
         remarques: backendData.remarques || '',
         photosEnlevement,
         photosLivraison,

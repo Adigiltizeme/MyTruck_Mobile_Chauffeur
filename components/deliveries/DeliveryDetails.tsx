@@ -3,7 +3,7 @@
  * 6 onglets : Actions | Informations | Conditions spéciales | Photos articles | Photos commentaires | Chronologie
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -22,7 +22,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import type { Commande, StatutLivraison, PhotoType, Photo } from '../../constants/Types';
+import type { Commande, StatutLivraison, PhotoType } from '../../constants/Types';
+import { gpsTrackingService, type TrackingStatus } from '../../services/gps-tracking.service';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import commandesService from '../../services/commandes.service';
@@ -38,16 +39,6 @@ interface DeliveryDetailsProps {
 
 export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onStatusChanged }) => {
   const [activeTab, setActiveTab] = useState<TabType>('actions');
-
-  const getStatutStyle = (statut: string) => {
-    if (statut === 'Confirmée' || statut === 'CONFIRMEE') {
-      return { bg: '#DBEAFE', text: '#1E3A8A' };
-    }
-    return { bg: '#D1FAE5', text: '#065F46' };
-  };
-
-  const statutCmdStyle = getStatutStyle(commande.statutCommande);
-  const statutLivStyle = getStatutStyle(commande.statutLivraison);
 
   return (
     <View style={styles.container}>
@@ -170,7 +161,7 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => (
       <View style={styles.infoRow}>
         <Text style={styles.infoLabel}>Ascenseur:</Text>
         <Text style={styles.infoValue}>
-          {commande.client?.typeAdresse === 'Oui' ? 'Oui' : 'Non'}
+          {commande.client?.ascenseur ? 'Oui' : 'Non'}
         </Text>
       </View>
     </View>
@@ -267,11 +258,39 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => (
 );
 
 // ─── Onglet Conditions spéciales ──────────────────────────────────────────
-const ConditionsTab: React.FC<{ commande: Commande }> = () => (
-  <View style={styles.tabContent}>
-    <Text style={styles.noData}>Aucune condition spéciale</Text>
-  </View>
-);
+const ConditionsTab: React.FC<{ commande: Commande }> = ({ commande }) => {
+  const conditions: { label: string; value: string }[] = [];
+
+  if (commande.rueInaccessible)    conditions.push({ label: '🚧 Rue inaccessible',      value: 'Oui' });
+  if (commande.hasStairs)          conditions.push({ label: '🪜 Escaliers',              value: commande.stairCount ? `${commande.stairCount} volée(s)` : 'Oui' });
+  if (commande.deliveryToUpperFloor) conditions.push({ label: '⬆️ Livraison à l\'étage', value: 'Oui' });
+  if (commande.isDuplex)           conditions.push({ label: '🏠 Duplex',                value: 'Oui' });
+  if (commande.needsAssembly)      conditions.push({ label: '🔧 Montage requis',         value: 'Oui' });
+  if (commande.paletteComplete)    conditions.push({ label: '📦 Palette complète',       value: 'Oui' });
+  if (commande.parkingDistance)    conditions.push({ label: '🅿️ Distance parking',       value: `${commande.parkingDistance} m` });
+
+  if (conditions.length === 0) {
+    return (
+      <View style={styles.tabContent}>
+        <Text style={styles.noData}>Aucune condition spéciale</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Conditions spéciales</Text>
+        {conditions.map((c, idx) => (
+          <View key={idx} style={[styles.infoRow, { paddingVertical: 8, borderBottomWidth: idx < conditions.length - 1 ? 1 : 0, borderBottomColor: '#F3F4F6' }]}>
+            <Text style={[styles.infoLabel, { flex: 2 }]}>{c.label}</Text>
+            <Text style={[styles.infoValue, { fontWeight: '600', color: '#DC2626' }]}>{c.value}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+};
 
 // ─── Visionneuse Photo (Modal fullscreen) ─────────────────────────────────
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -316,14 +335,38 @@ const PhotosArticlesTab: React.FC<{ commande: Commande }> = ({ commande }) => {
 };
 
 // ─── Onglet Photos commentaires ───────────────────────────────────────────
+// Calqué sur PhotosCommentaires.tsx (web) : appel getRapports → affiche message + photos par rapport
 const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }> = ({ commande, onStatusChanged }) => {
+  type RapportsData = {
+    enlevement: any[];
+    livraison: any[];
+    photos: { enlevement: any[]; livraison: any[] };
+  };
+
+  const [rapports, setRapports] = useState<RapportsData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [deletingPhotoUrl, setDeletingPhotoUrl] = useState<string | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
-  const enlevementPhotos = (commande.photos || []).filter(p => p.type === 'ENLEVEMENT');
-  const livraisonPhotos = (commande.photos || []).filter(p => p.type === 'LIVRAISON');
+  const loadRapports = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await commandesService.getRapports(commande.id);
+      if (res.success && res.data) {
+        setRapports(res.data as unknown as RapportsData);
+      }
+    } catch (e) {
+      console.error('❌ Erreur chargement rapports:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [commande.id]);
 
-  const handleDeletePhoto = (photo: Photo) => {
+  useEffect(() => {
+    loadRapports();
+  }, [loadRapports]);
+
+  const handleDeletePhoto = (photo: any) => {
     Alert.alert(
       'Supprimer la photo',
       'Êtes-vous sûr de vouloir supprimer cette photo ?',
@@ -338,6 +381,7 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
               const res = await commandesService.deletePhoto(commande.id, photo.url);
               if (res.success) {
                 onStatusChanged?.();
+                await loadRapports();
               } else {
                 Alert.alert('Erreur', res.error || 'Impossible de supprimer la photo');
               }
@@ -352,46 +396,109 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
     );
   };
 
-  const renderSection = (title: string, photos: Photo[]) => {
-    if (photos.length === 0) return null;
+  const renderRapportBlock = (rapport: any, type: 'ENLEVEMENT' | 'LIVRAISON') => {
+    const photos: any[] = type === 'ENLEVEMENT'
+      ? (rapports?.photos?.enlevement || [])
+      : (rapports?.photos?.livraison || []);
+    const isEnlev = type === 'ENLEVEMENT';
+    const borderColor = isEnlev ? '#FDE68A' : '#93C5FD';
+    const bgColor    = isEnlev ? '#FFFBEB' : '#EFF6FF';
+    const titleColor = isEnlev ? '#D97706' : '#1D4ED8';
+    const title      = isEnlev ? "Rapport d'enlèvement" : 'Rapport de livraison';
+
     return (
-      <View style={{ marginBottom: 20 }}>
-        <Text style={styles.photoSectionTitle}>{title}</Text>
-        <View style={styles.preuvePhotoGrid}>
-          {photos.map((photo, idx) => (
-            <View key={photo.id || idx} style={styles.photoWithDelete}>
-              <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
-                <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deletePhotoButton}
-                onPress={() => handleDeletePhoto(photo)}
-                disabled={deletingPhotoUrl === photo.url}
-              >
-                {deletingPhotoUrl === photo.url
-                  ? <ActivityIndicator size="small" color="#FFFFFF" />
-                  : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
-                }
-              </TouchableOpacity>
+      <View style={{ borderWidth: 1, borderColor, borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+        {/* En-tête */}
+        <View style={{ backgroundColor: bgColor, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: borderColor }}>
+          <Text style={{ fontWeight: '700', color: titleColor, fontSize: 14 }}>{title}</Text>
+        </View>
+
+        <View style={{ padding: 14 }}>
+          {/* Date + Chauffeur */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+            {!!rapport.createdAt && (
+              <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                {format(new Date(rapport.createdAt), 'dd/MM/yyyy HH:mm', { locale: fr })}
+              </Text>
+            )}
+            {!!rapport.chauffeur && (
+              <Text style={{ fontSize: 12, color: '#6B7280' }}>
+                {rapport.chauffeur.prenom} {rapport.chauffeur.nom}
+              </Text>
+            )}
+          </View>
+
+          {/* Message */}
+          {!!rapport.message && (
+            <Text style={{ fontSize: 14, color: '#111827', marginBottom: photos.length > 0 ? 12 : 0 }}>
+              {rapport.message}
+            </Text>
+          )}
+
+          {/* Photos du rapport */}
+          {photos.length > 0 && (
+            <View>
+              <Text style={styles.photoSectionTitle}>Photos du rapport ({photos.length})</Text>
+              <View style={styles.preuvePhotoGrid}>
+                {photos.map((photo: any, idx: number) => (
+                  <View key={photo.id || idx} style={styles.photoWithDelete}>
+                    <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                      <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deletePhotoButton}
+                      onPress={() => handleDeletePhoto(photo)}
+                      disabled={deletingPhotoUrl === photo.url}
+                    >
+                      {deletingPhotoUrl === photo.url
+                        ? <ActivityIndicator size="small" color="#FFFFFF" />
+                        : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                      }
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
             </View>
-          ))}
+          )}
         </View>
       </View>
     );
   };
 
-  if (enlevementPhotos.length === 0 && livraisonPhotos.length === 0) {
+  if (loading) {
+    return (
+      <View style={[styles.tabContent, { alignItems: 'center', paddingTop: 40 }]}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={[styles.noData, { marginTop: 10 }]}>Chargement des rapports...</Text>
+      </View>
+    );
+  }
+
+  const hasRapports = rapports && (rapports.enlevement.length > 0 || rapports.livraison.length > 0);
+
+  if (!hasRapports) {
     return (
       <View style={styles.tabContent}>
-        <Text style={styles.noData}>Aucune photo</Text>
+        <Text style={styles.noData}>Aucun rapport de commentaire.</Text>
+        <Text style={[styles.noData, { marginTop: 6, fontSize: 12 }]}>
+          Créez un rapport dans l'onglet "Actions" pour qu'il apparaisse ici.
+        </Text>
       </View>
     );
   }
 
   return (
     <ScrollView style={styles.tabContent}>
-      {renderSection('Photos rapport enlèvement', enlevementPhotos)}
-      {renderSection('Photos rapport livraison', livraisonPhotos)}
+      {rapports?.enlevement?.map((rapport: any, idx: number) => (
+        <React.Fragment key={rapport.id || `enlev-${idx}`}>
+          {renderRapportBlock(rapport, 'ENLEVEMENT')}
+        </React.Fragment>
+      ))}
+      {rapports?.livraison?.map((rapport: any, idx: number) => (
+        <React.Fragment key={rapport.id || `liv-${idx}`}>
+          {renderRapportBlock(rapport, 'LIVRAISON')}
+        </React.Fragment>
+      ))}
       <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
     </ScrollView>
   );
@@ -437,12 +544,15 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   commande,
   onStatusChanged,
 }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   // ── Statut local (mise à jour optimiste immédiate) ──
   const [localStatut, setLocalStatut] = useState<string>(commande.statutLivraison);
   const [expandedStep, setExpandedStep] = useState<string | null>(null);
   const [loadingAction, setLoadingAction] = useState(false);
+
+  // ── GPS Tracking ──
+  const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>(() => gpsTrackingService.getStatus());
 
   // ── Timestamps par statut (chronologie) ──
   const [statusTimestamps, setStatusTimestamps] = useState<Record<string, Date>>(() => {
@@ -499,6 +609,38 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   React.useEffect(() => {
     setLocalStatut(commande.statutLivraison);
   }, [commande.statutLivraison]);
+
+  // ── Démarrer le tracking GPS ──
+  const startTracking = useCallback(async () => {
+    if (!token || gpsTrackingService.isTracking()) return;
+
+    // Chauffeur ID depuis la commande (après aplatissement du transformer) ou depuis l'utilisateur
+    const chauffeurId = commande.chauffeurs?.[0]?.id || user?.chauffeurId || user?.id;
+    if (!chauffeurId) return;
+
+    const chauffeurName = [user?.prenom, user?.nom].filter(Boolean).join(' ') ||
+      [commande.chauffeurs?.[0]?.prenom, commande.chauffeurs?.[0]?.nom].filter(Boolean).join(' ') ||
+      'Chauffeur';
+
+    const result = await gpsTrackingService.start(
+      { chauffeurId, chauffeurName, commandeId: commande.id, token },
+      setTrackingStatus,
+    );
+
+    if (!result.success) {
+      Alert.alert('GPS non disponible', result.error || 'Impossible de démarrer le suivi GPS');
+    }
+  }, [commande.id, commande.chauffeurs, user, token]);
+
+  // Auto-démarrer le tracking si la commande est déjà EN COURS DE LIVRAISON au montage
+  React.useEffect(() => {
+    setTrackingStatus(gpsTrackingService.getStatus());
+    if (commande.statutLivraison === 'EN COURS DE LIVRAISON') {
+      startTracking();
+    }
+    // Pas de cleanup : le singleton persiste même si le composant est démonté
+    // (chauffeur change d'onglet → tracking continue)
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const statut = localStatut;
   const nextAction = getNextAction(statut);
@@ -574,6 +716,13 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               setStatusTimestamps(prev => ({ ...prev, [targetStatus]: new Date() }));
               setLoadingAction(false);
               onStatusChanged?.();
+
+              // GPS : démarrer quand livraison commence, arrêter quand terminée
+              if (targetStatus === 'EN COURS DE LIVRAISON') {
+                startTracking();
+              } else if (targetStatus === 'LIVREE') {
+                gpsTrackingService.stop().then(() => setTrackingStatus('idle'));
+              }
             } else {
               setLoadingAction(false);
               Alert.alert(
@@ -607,6 +756,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               setStatusTimestamps(prev => ({ ...prev, ['ECHEC']: new Date() }));
               setLoadingAction(false);
               onStatusChanged?.();
+              gpsTrackingService.stop().then(() => setTrackingStatus('idle'));
             } else {
               setLoadingAction(false);
               Alert.alert('Erreur', res.error || 'Impossible de mettre à jour le statut');
@@ -702,7 +852,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     } finally {
       setLoadingRapport(false);
     }
-  }, [activeRapportType, rapportMessage, commande.id, commande.chauffeurs, onStatusChanged]);
+  }, [activeRapportType, rapportMessage, rapportPhotos, commande.id, commande.chauffeurs, onStatusChanged]);
 
   // ── Photo : caméra ──
   const handleTakePhoto = useCallback(async (type: PhotoType) => {
@@ -859,6 +1009,25 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                 )}
               </View>
             </View>
+          )}
+        </View>
+      )}
+
+      {/* ── Indicateur GPS (visible uniquement EN COURS DE LIVRAISON) ── */}
+      {localStatut === 'EN COURS DE LIVRAISON' && (
+        <View style={styles.gpsIndicator}>
+          <View style={[styles.gpsDot, trackingStatus === 'active' && styles.gpsDotActive]} />
+          <Text style={styles.gpsIndicatorText}>
+            {trackingStatus === 'active'
+              ? '📍 Suivi GPS actif — position partagée'
+              : trackingStatus === 'starting'
+                ? '⏳ Démarrage du suivi GPS...'
+                : '⚠️ Suivi GPS inactif'}
+          </Text>
+          {trackingStatus === 'idle' && (
+            <TouchableOpacity onPress={startTracking} style={styles.gpsRetryButton}>
+              <Text style={styles.gpsRetryText}>Activer</Text>
+            </TouchableOpacity>
           )}
         </View>
       )}
@@ -1882,5 +2051,46 @@ const styles = StyleSheet.create({
   viewerImage: {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT * 0.85,
+  },
+
+  // ── GPS Tracking Indicator ──────────────────────────────────────────────────
+  gpsIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  gpsDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#9CA3AF',
+  },
+  gpsDotActive: {
+    backgroundColor: '#10B981',
+  },
+  gpsIndicatorText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1D4ED8',
+    fontWeight: '500',
+  },
+  gpsRetryButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  gpsRetryText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
