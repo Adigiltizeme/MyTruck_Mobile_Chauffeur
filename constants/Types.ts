@@ -128,6 +128,7 @@ export interface DatesInfo {
 export interface Commande {
   id: string;
   numeroCommande: string;
+  type?: 'CLIENT' | 'INTER_MAGASIN'; // Type de commande
   statutCommande: StatutCommande;
   statutLivraison: StatutLivraison;
   dateCommande: string;
@@ -141,6 +142,14 @@ export interface Commande {
   // Relations
   magasin?: Magasin;
   magasinId?: string;
+
+  // ✅ Cessions : magasin demandeur (destination)
+  magasinDestination?: Magasin;
+  magasinDestinationId?: string;
+
+  // ✅ Cessions : motif et priorité
+  motifCession?: string;
+  prioriteCession?: string;
 
   client?: Client;
   clientId?: string;

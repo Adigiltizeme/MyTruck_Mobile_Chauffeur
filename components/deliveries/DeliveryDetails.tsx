@@ -103,173 +103,188 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
   );
 };
 
-// ─── Onglet Informations ───────────────────────────────────────────────────
-const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => (
-  <ScrollView style={styles.tabContent}>
-    {/* Magasin */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Magasin</Text>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Nom:</Text>
-        <Text style={styles.infoValue}>{commande.magasin?.nom || 'N/A'}</Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Téléphone:</Text>
-        <Text style={[styles.infoValue, styles.phoneLink]}>
-          {commande.magasin?.telephone || 'N/A'}
-        </Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Adresse:</Text>
-        <Text style={styles.infoValue}>
-          {commande.magasin?.adresse
-            ? (commande.magasin.codePostal && commande.magasin.ville
-                ? `${commande.magasin.adresse}, ${commande.magasin.codePostal} ${commande.magasin.ville}`
-                : commande.magasin.adresse)
-            : 'N/A'}
-        </Text>
-      </View>
+// ─── Bloc magasin réutilisable ─────────────────────────────────────────────
+const MagasinBlock: React.FC<{ titre: string; magasin?: Commande['magasin'] }> = ({ titre, magasin }) => (
+  <View style={styles.section}>
+    <Text style={styles.sectionTitle}>{titre}</Text>
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>Nom:</Text>
+      <Text style={styles.infoValue}>{magasin?.nom || 'N/A'}</Text>
     </View>
-
-    {/* Client */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Client</Text>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Nom:</Text>
-        <Text style={styles.infoValue}>
-          {commande.client ? `${commande.client.nom} ${commande.client.prenom}` : 'N/A'}
-        </Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Téléphone:</Text>
-        <Text style={[styles.infoValue, styles.phoneLink]}>
-          {commande.client?.telephone || 'N/A'}
-        </Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Adresse:</Text>
-        <Text style={styles.infoValue}>
-          {commande.client?.adresseLigne1 || 'N/A'}
-        </Text>
-      </View>
-      {!!commande.client?.etage && (
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Étage:</Text>
-          <Text style={styles.infoValue}>{commande.client.etage}</Text>
-        </View>
-      )}
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Ascenseur:</Text>
-        <Text style={styles.infoValue}>
-          {commande.client?.ascenseur ? 'Oui' : 'Non'}
-        </Text>
-      </View>
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>Téléphone:</Text>
+      <Text style={[styles.infoValue, styles.phoneLink]}>{magasin?.telephone || 'N/A'}</Text>
     </View>
-
-    {/* Livraison */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Livraison</Text>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Date:</Text>
-        <Text style={styles.infoValue}>
-          {commande.dateLivraison
-            ? format(new Date(commande.dateLivraison), 'dd/MM/yyyy')
-            : 'N/A'}
-        </Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Créneau:</Text>
-        <Text style={styles.infoValue}>{commande.livraison?.creneau || 'N/A'}</Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Véhicule:</Text>
-        <Text style={styles.infoValue}>{commande.livraison?.vehicule || 'N/A'}</Text>
-      </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Équipiers:</Text>
-        <Text style={styles.infoValue}>
-          {String(commande.livraison?.equipiers ?? 0)}
-        </Text>
-      </View>
-    </View>
-
-    {/* Articles */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Articles</Text>
-      {commande.articles && commande.articles.length > 0 && Array.isArray(commande.articles[0].dimensions) ? (
-        commande.articles[0].dimensions.map((dim, index) => (
-          <View key={index} style={styles.articleCard}>
-            <Text style={styles.articleTitle}>
-              {index === 0 ? '📦 [Article le plus grand]' : '⚖️ [Article le plus lourd]'}
-              {dim.quantite > 1 ? ` (x${dim.quantite})` : ''}
-            </Text>
-            <View style={styles.dimensionsRow}>
-              <Text style={styles.dimensionText}>{'Longueur: ' + String(dim.longueur || 0) + ' cm'}</Text>
-              <Text style={styles.dimensionText}>{'Largeur: ' + String(dim.largeur || 0) + ' cm'}</Text>
-            </View>
-            <View style={styles.dimensionsRow}>
-              <Text style={styles.dimensionText}>{'Hauteur: ' + String(dim.hauteur || 0) + ' cm'}</Text>
-              <Text style={styles.dimensionText}>{'Poids: ' + String(dim.poids || 0) + ' kg'}</Text>
-            </View>
-          </View>
-        ))
-      ) : (
-        <Text style={styles.noData}>Aucun article avec dimensions</Text>
-      )}
-      {(commande.articles?.[0]?.autresArticles ?? 0) > 0 && (
-        <Text style={styles.autresArticles}>
-          {'Dont ' + String(commande.articles![0].autresArticles) + ' autre(s) article(s) (ni les plus grands, ni les plus lourds)'}
-        </Text>
-      )}
-      <Text style={styles.totalArticles}>
-        {'Nombre total: ' + String(commande.articles?.[0]?.nombre || 0)}
+    <View style={styles.infoRow}>
+      <Text style={styles.infoLabel}>Adresse:</Text>
+      <Text style={styles.infoValue}>
+        {magasin?.adresse
+          ? (magasin.codePostal && magasin.ville
+              ? `${magasin.adresse}, ${magasin.codePostal} ${magasin.ville}`
+              : magasin.adresse)
+          : 'N/A'}
       </Text>
     </View>
-
-    {/* Chauffeurs */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Chauffeur(s)</Text>
-      {commande.chauffeurs && commande.chauffeurs.length > 0 ? (
-        commande.chauffeurs.map((chauffeur) => (
-          <View key={chauffeur.id} style={styles.chauffeurCard}>
-            <Text style={styles.chauffeurName}>
-              {[chauffeur.prenom, chauffeur.nom].filter(Boolean).join(' ') || 'Chauffeur'}
-            </Text>
-            {!!chauffeur.telephone && (
-              <Text style={[styles.infoValue, styles.phoneLink]}>
-                {'📞 ' + chauffeur.telephone}
-              </Text>
-            )}
-          </View>
-        ))
-      ) : (
-        <Text style={styles.noData}>Aucun chauffeur assigné</Text>
-      )}
-    </View>
-
-    {/* Remarques */}
-    {!!commande.livraison?.remarques && (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Autres remarques</Text>
-        <Text style={styles.infoValue}>{commande.livraison.remarques}</Text>
-      </View>
-    )}
-  </ScrollView>
+  </View>
 );
+
+// ─── Onglet Informations ───────────────────────────────────────────────────
+const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
+  const isCession = commande.type === 'INTER_MAGASIN';
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      {isCession ? (
+        <>
+          {/* Cession : Magasin cédant (origine) */}
+          <MagasinBlock titre="Magasin cédant (origine)" magasin={commande.magasin} />
+
+          {/* Cession : Magasin demandeur (destination) */}
+          <MagasinBlock titre="Magasin demandeur (destination)" magasin={commande.magasinDestination} />
+        </>
+      ) : (
+        <>
+          {/* Commande normale : Magasin */}
+          <MagasinBlock titre="Magasin" magasin={commande.magasin} />
+
+          {/* Commande normale : Client */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Client</Text>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Nom:</Text>
+              <Text style={styles.infoValue}>
+                {commande.client ? `${commande.client.nom} ${commande.client.prenom}` : 'N/A'}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Téléphone:</Text>
+              <Text style={[styles.infoValue, styles.phoneLink]}>
+                {commande.client?.telephone || 'N/A'}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Adresse:</Text>
+              <Text style={styles.infoValue}>{commande.client?.adresseLigne1 || 'N/A'}</Text>
+            </View>
+            {!!commande.client?.etage && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Étage:</Text>
+                <Text style={styles.infoValue}>{commande.client.etage}</Text>
+              </View>
+            )}
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Ascenseur:</Text>
+              <Text style={styles.infoValue}>{commande.client?.ascenseur ? 'Oui' : 'Non'}</Text>
+            </View>
+          </View>
+        </>
+      )}
+
+      {/* Livraison / Transport (commun) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{isCession ? 'Transport' : 'Livraison'}</Text>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Date:</Text>
+          <Text style={styles.infoValue}>
+            {commande.dateLivraison
+              ? format(new Date(commande.dateLivraison), 'dd/MM/yyyy')
+              : 'N/A'}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Créneau:</Text>
+          <Text style={styles.infoValue}>{commande.livraison?.creneau || 'N/A'}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Véhicule:</Text>
+          <Text style={styles.infoValue}>{commande.livraison?.vehicule || 'N/A'}</Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Équipiers:</Text>
+          <Text style={styles.infoValue}>{String(commande.livraison?.equipiers ?? 0)}</Text>
+        </View>
+      </View>
+
+      {/* Articles (commun) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Articles</Text>
+        {commande.articles && commande.articles.length > 0 && Array.isArray(commande.articles[0].dimensions) ? (
+          commande.articles[0].dimensions.map((dim, index) => (
+            <View key={index} style={styles.articleCard}>
+              <Text style={styles.articleTitle}>
+                {index === 0 ? '📦 [Article le plus grand]' : '⚖️ [Article le plus lourd]'}
+                {dim.quantite > 1 ? ` (x${dim.quantite})` : ''}
+              </Text>
+              <View style={styles.dimensionsRow}>
+                <Text style={styles.dimensionText}>{'Longueur: ' + String(dim.longueur || 0) + ' cm'}</Text>
+                <Text style={styles.dimensionText}>{'Largeur: ' + String(dim.largeur || 0) + ' cm'}</Text>
+              </View>
+              <View style={styles.dimensionsRow}>
+                <Text style={styles.dimensionText}>{'Hauteur: ' + String(dim.hauteur || 0) + ' cm'}</Text>
+                <Text style={styles.dimensionText}>{'Poids: ' + String(dim.poids || 0) + ' kg'}</Text>
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noData}>Aucun article avec dimensions</Text>
+        )}
+        {(commande.articles?.[0]?.autresArticles ?? 0) > 0 && (
+          <Text style={styles.autresArticles}>
+            {'Dont ' + String(commande.articles![0].autresArticles) + ' autre(s) article(s)'}
+          </Text>
+        )}
+        <Text style={styles.totalArticles}>
+          {'Nombre total: ' + String(commande.articles?.[0]?.nombre || 0)}
+        </Text>
+      </View>
+
+      {/* Chauffeurs (commun) */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Chauffeur(s)</Text>
+        {commande.chauffeurs && commande.chauffeurs.length > 0 ? (
+          commande.chauffeurs.map((chauffeur) => (
+            <View key={chauffeur.id} style={styles.chauffeurCard}>
+              <Text style={styles.chauffeurName}>
+                {[chauffeur.prenom, chauffeur.nom].filter(Boolean).join(' ') || 'Chauffeur'}
+              </Text>
+              {!!chauffeur.telephone && (
+                <Text style={[styles.infoValue, styles.phoneLink]}>{'📞 ' + chauffeur.telephone}</Text>
+              )}
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noData}>Aucun chauffeur assigné</Text>
+        )}
+      </View>
+
+      {/* Remarques (commun) */}
+      {!!commande.livraison?.remarques && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Remarques</Text>
+          <Text style={styles.infoValue}>{commande.livraison.remarques}</Text>
+        </View>
+      )}
+    </ScrollView>
+  );
+};
 
 // ─── Onglet Conditions spéciales ──────────────────────────────────────────
 const ConditionsTab: React.FC<{ commande: Commande }> = ({ commande }) => {
+  const isCession = commande.type === 'INTER_MAGASIN';
+
   const conditions: { label: string; value: string }[] = [];
+  if (commande.rueInaccessible)      conditions.push({ label: '🚧 Rue inaccessible',      value: 'Oui' });
+  if (commande.hasStairs)            conditions.push({ label: '🪜 Escaliers',              value: commande.stairCount ? `${commande.stairCount} volée(s)` : 'Oui' });
+  if (commande.deliveryToUpperFloor) conditions.push({ label: '⬆️ Livraison à l\'étage',  value: 'Oui' });
+  if (commande.isDuplex)             conditions.push({ label: '🏠 Duplex',                 value: 'Oui' });
+  if (commande.needsAssembly)        conditions.push({ label: '🔧 Montage requis',          value: 'Oui' });
+  if (commande.paletteComplete)      conditions.push({ label: '📦 Palette complète',        value: 'Oui' });
+  if (commande.parkingDistance)      conditions.push({ label: '🅿️ Distance parking',        value: `${commande.parkingDistance} m` });
 
-  if (commande.rueInaccessible)    conditions.push({ label: '🚧 Rue inaccessible',      value: 'Oui' });
-  if (commande.hasStairs)          conditions.push({ label: '🪜 Escaliers',              value: commande.stairCount ? `${commande.stairCount} volée(s)` : 'Oui' });
-  if (commande.deliveryToUpperFloor) conditions.push({ label: '⬆️ Livraison à l\'étage', value: 'Oui' });
-  if (commande.isDuplex)           conditions.push({ label: '🏠 Duplex',                value: 'Oui' });
-  if (commande.needsAssembly)      conditions.push({ label: '🔧 Montage requis',         value: 'Oui' });
-  if (commande.paletteComplete)    conditions.push({ label: '📦 Palette complète',       value: 'Oui' });
-  if (commande.parkingDistance)    conditions.push({ label: '🅿️ Distance parking',       value: `${commande.parkingDistance} m` });
+  const hasCessionInfo = isCession && (!!commande.motifCession || !!commande.prioriteCession);
+  const hasPhysicalConditions = conditions.length > 0;
 
-  if (conditions.length === 0) {
+  if (!hasCessionInfo && !hasPhysicalConditions) {
     return (
       <View style={styles.tabContent}>
         <Text style={styles.noData}>Aucune condition spéciale</Text>
@@ -279,15 +294,42 @@ const ConditionsTab: React.FC<{ commande: Commande }> = ({ commande }) => {
 
   return (
     <ScrollView style={styles.tabContent}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Conditions spéciales</Text>
-        {conditions.map((c, idx) => (
-          <View key={idx} style={[styles.infoRow, { paddingVertical: 8, borderBottomWidth: idx < conditions.length - 1 ? 1 : 0, borderBottomColor: '#F3F4F6' }]}>
-            <Text style={[styles.infoLabel, { flex: 2 }]}>{c.label}</Text>
-            <Text style={[styles.infoValue, { fontWeight: '600', color: '#DC2626' }]}>{c.value}</Text>
-          </View>
-        ))}
-      </View>
+      {/* Informations cession (INTER_MAGASIN uniquement) */}
+      {hasCessionInfo && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Informations cession</Text>
+          {!!commande.motifCession && (
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { flex: 2 }]}>📋 Motif</Text>
+              <Text style={styles.infoValue}>{commande.motifCession}</Text>
+            </View>
+          )}
+          {!!commande.prioriteCession && (
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { flex: 2 }]}>⚡ Priorité</Text>
+              <Text style={[styles.infoValue,
+                commande.prioriteCession === 'Urgente' ? { fontWeight: '700', color: '#DC2626' } :
+                commande.prioriteCession === 'Planifiée' ? { color: '#2563EB' } : {}
+              ]}>
+                {commande.prioriteCession}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Conditions physiques (communes) */}
+      {hasPhysicalConditions && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Conditions spéciales</Text>
+          {conditions.map((c, idx) => (
+            <View key={idx} style={[styles.infoRow, { paddingVertical: 8, borderBottomWidth: idx < conditions.length - 1 ? 1 : 0, borderBottomColor: '#F3F4F6' }]}>
+              <Text style={[styles.infoLabel, { flex: 2 }]}>{c.label}</Text>
+              <Text style={[styles.infoValue, { fontWeight: '600', color: '#DC2626' }]}>{c.value}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 };

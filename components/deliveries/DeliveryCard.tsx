@@ -51,17 +51,22 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
   const statutCmdClass = getStatutCommandeStyle(commande.statutCommande);
   const statutLivClass = getStatutLivraisonStyle(commande.statutLivraison);
 
+  const isCession = commande.type === 'INTER_MAGASIN';
+
+  // Sous-titre : "Cédant → Demandeur" pour cessions, "NOM Prénom" pour commandes normales
+  const subtitle = isCession
+    ? [commande.magasin?.nom, commande.magasinDestination?.nom].filter(Boolean).join(' → ') || 'N/A'
+    : commande.client
+      ? `${commande.client.nom?.toUpperCase() || ''} ${commande.client.prenom || ''}`.trim() || 'N/A'
+      : 'N/A';
+
   return (
     <View style={[styles.card, isExpanded && styles.cardExpanded]}>
       {/* En-tête carte */}
       <View style={[styles.cardHeader, isExpanded && styles.cardHeaderExpanded]}>
         <View style={styles.headerLeft}>
           <Text style={styles.numeroCommande}>{commande.numeroCommande || 'N/A'}</Text>
-          <Text style={styles.clientName}>
-            {commande.client
-              ? `${commande.client.nom?.toUpperCase() || ''} ${commande.client.prenom || ''}`.trim()
-              : 'N/A'}
-          </Text>
+          <Text style={[styles.clientName, isCession && styles.cessionLabel]}>{subtitle}</Text>
         </View>
         <TouchableOpacity onPress={onToggle} style={styles.toggleButton}>
           <Text style={styles.toggleIcon}>{isExpanded ? '▼' : '▶'}</Text>
@@ -172,6 +177,10 @@ const styles = StyleSheet.create({
   clientName: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  cessionLabel: {
+    color: '#2563EB', // bleu comme dans le web
+    fontWeight: '500',
   },
   toggleButton: {
     padding: 4,

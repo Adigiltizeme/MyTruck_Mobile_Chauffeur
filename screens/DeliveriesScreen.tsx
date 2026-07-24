@@ -72,8 +72,12 @@ export const DeliveriesScreen: React.FC = () => {
       filtered = filtered.filter(
         (cmd) =>
           cmd.numeroCommande?.toLowerCase().includes(search) ||
+          // Commandes normales : client
           cmd.client?.nom?.toLowerCase().includes(search) ||
-          cmd.client?.prenom?.toLowerCase().includes(search)
+          cmd.client?.prenom?.toLowerCase().includes(search) ||
+          // Cessions : magasin cédant et magasin demandeur
+          cmd.magasin?.nom?.toLowerCase().includes(search) ||
+          cmd.magasinDestination?.nom?.toLowerCase().includes(search)
       );
     }
 

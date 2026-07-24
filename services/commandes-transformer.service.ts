@@ -6,6 +6,36 @@
 
 import type { Commande } from '../constants/Types';
 
+/**
+ * Extrait et normalise les dimensions depuis les données backend.
+ * Gère les deux formats possibles :
+ * - String JSON (commandes : stockées avec JSON.stringify côté backend)
+ * - Array JS   (cessions : stockées directement côté backend)
+ */
+function extractDimensions(backendData: any): any[] {
+  try {
+    if (!backendData.articles || backendData.articles.length === 0) return [];
+
+    const dimensionsRaw = backendData.articles[0].dimensions;
+
+    if (Array.isArray(dimensionsRaw)) return dimensionsRaw;
+
+    if (typeof dimensionsRaw === 'string') {
+      const parsed = JSON.parse(dimensionsRaw);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+
+    if (dimensionsRaw && typeof dimensionsRaw === 'object' && !Array.isArray(dimensionsRaw)) {
+      // Objet unique — l'envelopper dans un tableau
+      if (dimensionsRaw.nom || dimensionsRaw.quantite) return [dimensionsRaw];
+    }
+
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 export const commandesTransformerService = {
   /**
    * Transformer une commande backend en format métier mobile
@@ -21,8 +51,40 @@ export const commandesTransformerService = {
       .filter((p) => p.type === 'LIVRAISON')
       .map((p) => p.url as string);
 
+    // ── Articles ──────────────────────────────────────────────────────────
+    const dimensions = extractDimensions(backendData);
+    const rawArticle = backendData.articles?.[0];
+
+    // Fallback nombre : si le champ DB est 0 / absent, calcule depuis dimensions
+    const nombreFromDimensions = dimensions.reduce(
+      (sum: number, d: any) => sum + (Number(d.quantite) || 1),
+      0
+    );
+    const nombre: number =
+      rawArticle?.nombre && rawArticle.nombre > 0
+        ? rawArticle.nombre
+        : nombreFromDimensions;
+
+    const articles = rawArticle
+      ? [{
+          id: rawArticle.id || '',
+          nombre,
+          details: rawArticle.details || '',
+          categories: rawArticle.categories || [],
+          dimensions,
+          autresArticles: rawArticle.autresArticles || 0,
+          canBeTilted: rawArticle.canBeTilted || false,
+        }]
+      : undefined;
+
     return {
       ...backendData,
+
+      // ✅ Type de commande (CLIENT ou INTER_MAGASIN)
+      type: backendData.type || 'CLIENT',
+
+      // ✅ Articles normalisés (dimensions parsées + nombre calculé en fallback)
+      articles,
 
       // ✅ Aplatir la table de jonction ChauffeurSurCommande → tableau Chauffeur plat
       // Backend retourne: [{ commandeId, chauffeurId, chauffeur: { id, nom, prenom, ... } }]
@@ -46,6 +108,13 @@ export const commandesTransformerService = {
         photosEnlevement,
         photosLivraison,
       },
+
+      // ✅ Cessions : magasin demandeur (destination)
+      magasinDestination: backendData.magasinDestination || null,
+
+      // ✅ Cessions : motif et priorité
+      motifCession: backendData.motifCession || '',
+      prioriteCession: backendData.prioriteCession || '',
     };
   },
 
