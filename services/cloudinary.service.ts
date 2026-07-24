@@ -6,39 +6,51 @@
 
 import axios from 'axios';
 
-const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+// EXPO_PUBLIC_ requis par Expo pour exposer les variables au bundle JS
+// Fallbacks identiques au pattern de API.ts (URL Railway hardcodée)
+const CLOUD_NAME =
+  process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dpxqbfxqq';
+
+// upload_preset non signé — valeur déjà visible dans frontend/src/services/cloudinary.service.ts
+const UPLOAD_PRESET =
+  process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'my_truck_images';
 
 /**
  * Upload une photo (URI locale React Native) directement vers Cloudinary.
  * Retourne { url, filename } à utiliser dans les appels backend.
  */
 export async function uploadPhotoToCloudinary(
-  photoUri: string,
-  folder: string = 'mytruck-photos'
+  photoUri: string
 ): Promise<{ url: string; filename: string }> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error(
-      'EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME et EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET doivent être définis dans .env'
-    );
+  if (!CLOUD_NAME) {
+    throw new Error('Cloudinary cloud name non défini');
   }
 
   const filename = photoUri.split('/').pop() || `photo_${Date.now()}.jpg`;
 
-  // React Native FormData : le champ 'file' accepte { uri, type, name }
+  console.log(`📸 [Cloudinary] Upload: cloud=${CLOUD_NAME} preset=${UPLOAD_PRESET} file=${filename}`);
+
+  // Identique au web : uniquement 'file' + 'upload_preset'
   const formData = new FormData();
   formData.append('file', { uri: photoUri, type: 'image/jpeg', name: filename } as any);
   formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('folder', folder);
 
-  const response = await axios.post(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } }
-  );
+  try {
+    const response = await axios.post(
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
 
-  return {
-    url: response.data.secure_url as string,
-    filename: (response.data.public_id as string) || filename,
-  };
+    console.log(`✅ [Cloudinary] Upload réussi:`, response.data.secure_url);
+
+    return {
+      url: response.data.secure_url as string,
+      filename: (response.data.public_id as string) || filename,
+    };
+  } catch (error: any) {
+    const detail = error?.response?.data?.error?.message || error?.message || 'Erreur inconnue';
+    console.error(`❌ [Cloudinary] Erreur 400 détail:`, detail, error?.response?.data);
+    throw new Error(`Cloudinary: ${detail}`);
+  }
 }

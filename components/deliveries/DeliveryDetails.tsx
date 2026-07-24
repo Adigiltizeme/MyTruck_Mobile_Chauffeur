@@ -15,10 +15,14 @@ import {
   Linking,
   TextInput,
   Platform,
+  Image,
+  Modal,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import type { Commande, StatutLivraison, PhotoType } from '../../constants/Types';
+import type { Commande, StatutLivraison, PhotoType, Photo } from '../../constants/Types';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import commandesService from '../../services/commandes.service';
@@ -100,7 +104,7 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
         {activeTab === 'info'             && <InfoTab commande={commande} />}
         {activeTab === 'conditions'       && <ConditionsTab commande={commande} />}
         {activeTab === 'photos-articles'  && <PhotosArticlesTab commande={commande} />}
-        {activeTab === 'photos-comments'  && <PhotosCommentsTab commande={commande} />}
+        {activeTab === 'photos-comments'  && <PhotosCommentsTab commande={commande} onStatusChanged={onStatusChanged} />}
         {activeTab === 'chronologie'      && <ChronologieTab commande={commande} />}
         {activeTab === 'actions'          && <ActionsTab commande={commande} onStatusChanged={onStatusChanged} />}
       </View>
@@ -269,19 +273,129 @@ const ConditionsTab: React.FC<{ commande: Commande }> = () => (
   </View>
 );
 
-// ─── Onglet Photos articles ───────────────────────────────────────────────
-const PhotosArticlesTab: React.FC<{ commande: Commande }> = () => (
-  <View style={styles.tabContent}>
-    <Text style={styles.noData}>Aucune photo article</Text>
-  </View>
+// ─── Visionneuse Photo (Modal fullscreen) ─────────────────────────────────
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const PhotoViewer: React.FC<{ url: string | null; onClose: () => void }> = ({ url, onClose }) => (
+  <Modal visible={!!url} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <StatusBar hidden />
+    <View style={styles.viewerOverlay}>
+      <TouchableOpacity style={styles.viewerClose} onPress={onClose} activeOpacity={0.8}>
+        <Ionicons name="close-circle" size={36} color="#FFFFFF" />
+      </TouchableOpacity>
+      {url && (
+        <Image
+          source={{ uri: url }}
+          style={styles.viewerImage}
+          resizeMode="contain"
+        />
+      )}
+    </View>
+  </Modal>
 );
 
+// ─── Onglet Photos articles ───────────────────────────────────────────────
+const PhotosArticlesTab: React.FC<{ commande: Commande }> = ({ commande }) => {
+  const articlePhotos = (commande.photos || []).filter(p => p.type === 'ARTICLE');
+  if (articlePhotos.length === 0) {
+    return (
+      <View style={styles.tabContent}>
+        <Text style={styles.noData}>Aucune photo article</Text>
+      </View>
+    );
+  }
+  return (
+    <ScrollView style={styles.tabContent}>
+      <View style={styles.preuvePhotoGrid}>
+        {articlePhotos.map((photo, idx) => (
+          <Image key={photo.id || idx} source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+        ))}
+      </View>
+    </ScrollView>
+  );
+};
+
 // ─── Onglet Photos commentaires ───────────────────────────────────────────
-const PhotosCommentsTab: React.FC<{ commande: Commande }> = () => (
-  <View style={styles.tabContent}>
-    <Text style={styles.noData}>Aucune photo commentaire</Text>
-  </View>
-);
+const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }> = ({ commande, onStatusChanged }) => {
+  const [deletingPhotoUrl, setDeletingPhotoUrl] = useState<string | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+
+  const enlevementPhotos = (commande.photos || []).filter(p => p.type === 'ENLEVEMENT');
+  const livraisonPhotos = (commande.photos || []).filter(p => p.type === 'LIVRAISON');
+
+  const handleDeletePhoto = (photo: Photo) => {
+    Alert.alert(
+      'Supprimer la photo',
+      'Êtes-vous sûr de vouloir supprimer cette photo ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingPhotoUrl(photo.url);
+            try {
+              const res = await commandesService.deletePhoto(commande.id, photo.url);
+              if (res.success) {
+                onStatusChanged?.();
+              } else {
+                Alert.alert('Erreur', res.error || 'Impossible de supprimer la photo');
+              }
+            } catch (e: any) {
+              Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+            } finally {
+              setDeletingPhotoUrl(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const renderSection = (title: string, photos: Photo[]) => {
+    if (photos.length === 0) return null;
+    return (
+      <View style={{ marginBottom: 20 }}>
+        <Text style={styles.photoSectionTitle}>{title}</Text>
+        <View style={styles.preuvePhotoGrid}>
+          {photos.map((photo, idx) => (
+            <View key={photo.id || idx} style={styles.photoWithDelete}>
+              <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deletePhotoButton}
+                onPress={() => handleDeletePhoto(photo)}
+                disabled={deletingPhotoUrl === photo.url}
+              >
+                {deletingPhotoUrl === photo.url
+                  ? <ActivityIndicator size="small" color="#FFFFFF" />
+                  : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                }
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  if (enlevementPhotos.length === 0 && livraisonPhotos.length === 0) {
+    return (
+      <View style={styles.tabContent}>
+        <Text style={styles.noData}>Aucune photo</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      {renderSection('Photos rapport enlèvement', enlevementPhotos)}
+      {renderSection('Photos rapport livraison', livraisonPhotos)}
+      <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+    </ScrollView>
+  );
+};
 
 // ─── Onglet Chronologie ───────────────────────────────────────────────────
 const ChronologieTab: React.FC<{ commande: Commande }> = () => (
@@ -371,6 +485,8 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   const [rapportMessage, setRapportMessage] = useState('');
   const [loadingRapport, setLoadingRapport] = useState(false);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [deletingProofPhotoUrl, setDeletingProofPhotoUrl] = useState<string | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   // ── Photos rapport (URLs Cloudinary par type) ──
   const [rapportPhotos, setRapportPhotos] = useState<Record<'ENLEVEMENT' | 'LIVRAISON', Array<{ url: string; filename: string }>>>({
@@ -563,7 +679,8 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     }
     setLoadingRapport(true);
     try {
-      const chauffeurId = user?.chauffeurId || commande.chauffeurs?.[0]?.id;
+      // Pour un chauffeur, user.id EST l'ID de l'entité Chauffeur (même table)
+      const chauffeurId = user?.id || commande.chauffeurs?.[0]?.id;
       const photos = rapportPhotos[activeRapportType];
       const res = await commandesService.createRapport(commande.id, {
         type: activeRapportType,
@@ -641,6 +758,36 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     } finally {
       setLoadingPhoto(false);
     }
+  }, [commande.id, onStatusChanged]);
+
+  // ── Supprimer une preuve de livraison ──
+  const handleDeleteProofPhoto = useCallback((photoUrl: string) => {
+    Alert.alert(
+      'Supprimer la photo',
+      'Êtes-vous sûr de vouloir supprimer cette preuve ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingProofPhotoUrl(photoUrl);
+            try {
+              const res = await commandesService.deletePhoto(commande.id, photoUrl);
+              if (res.success) {
+                onStatusChanged?.();
+              } else {
+                Alert.alert('Erreur', res.error || 'Impossible de supprimer la photo');
+              }
+            } catch (e: any) {
+              Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+            } finally {
+              setDeletingProofPhotoUrl(null);
+            }
+          },
+        },
+      ]
+    );
   }, [commande.id, onStatusChanged]);
 
   return (
@@ -1059,6 +1206,35 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               <Text style={styles.preuveSectionNote}>Envoi en cours...</Text>
             </View>
           )}
+          {/* Photos de preuve déjà uploadées */}
+          {commande.photos && commande.photos.filter(p => p.type === 'LIVRAISON').length > 0 && (
+            <View style={styles.preuvePhotoGrid}>
+              {commande.photos
+                .filter(p => p.type === 'LIVRAISON')
+                .map((photo, idx) => (
+                  <View key={photo.id || idx} style={styles.photoWithDelete}>
+                    <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                      <Image
+                        source={{ uri: photo.url }}
+                        style={styles.preuvePhotoItem}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deletePhotoButton}
+                      onPress={() => handleDeleteProofPhoto(photo.url)}
+                      disabled={deletingProofPhotoUrl === photo.url}
+                    >
+                      {deletingProofPhotoUrl === photo.url
+                        ? <ActivityIndicator size="small" color="#FFFFFF" />
+                        : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                      }
+                    </TouchableOpacity>
+                  </View>
+                ))}
+            </View>
+          )}
+          <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
         </View>
       )}
 
@@ -1656,5 +1832,55 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 10,
+  },
+  preuvePhotoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  preuvePhotoItem: {
+    width: 80,
+    height: 80,
+    borderRadius: 6,
+    backgroundColor: '#E5E7EB',
+  },
+  photoWithDelete: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+  },
+  deletePhotoButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(239,68,68,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  viewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerClose: {
+    position: 'absolute',
+    top: 48,
+    right: 16,
+    zIndex: 10,
+  },
+  viewerImage: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.85,
   },
 });

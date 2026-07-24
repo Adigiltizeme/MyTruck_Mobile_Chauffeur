@@ -222,6 +222,28 @@ export const commandesService = {
   },
 
   /**
+   * Supprimer une photo de la commande
+   * @param commandeId - ID de la commande
+   * @param photoUrl - URL Cloudinary de la photo
+   */
+  async deletePhoto(commandeId: string, photoUrl: string): Promise<ApiResponse<any>> {
+    try {
+      console.log('🗑️ [COMMANDES] Suppression photo:', photoUrl);
+      const response = await apiService.delete(
+        COMMANDES_ENDPOINTS.DELETE_PHOTO(commandeId),
+        { photoUrl }
+      );
+      if (response.success) {
+        console.log('✅ [COMMANDES] Photo supprimée avec succès');
+      }
+      return response;
+    } catch (error) {
+      console.error('❌ [COMMANDES] Erreur suppression photo:', error);
+      return { success: false, error: 'Erreur lors de la suppression de la photo' };
+    }
+  },
+
+  /**
    * Récupérer les rapports d'une commande
    * @param commandeId - ID de la commande
    */

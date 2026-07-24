@@ -32,6 +32,7 @@ export const COMMANDES_ENDPOINTS = {
   UPDATE_STATUT_COMMANDE: (id: string) => `/commandes/${id}/statut-commande`,
   UPDATE_STATUT_LIVRAISON: (id: string) => `/commandes/${id}/statut-livraison`,
   ADD_PHOTO: (id: string) => `/commandes/${id}/photos-livraison`,
+  DELETE_PHOTO: (id: string) => `/commandes/${id}/photos`,
   CREATE_RAPPORT: (id: string) => `/commandes/${id}/rapports`,
   GET_RAPPORTS: (id: string) => `/commandes/${id}/rapports`,
 };

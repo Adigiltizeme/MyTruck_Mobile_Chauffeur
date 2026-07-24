@@ -12,6 +12,15 @@ export const commandesTransformerService = {
    * @param backendData - Données brutes du backend
    */
   transformCommande(backendData: any): Commande {
+    // Extraire URLs photos par type depuis backendData.photos (Photo[])
+    const rawPhotos: any[] = backendData.photos || [];
+    const photosEnlevement = rawPhotos
+      .filter((p) => p.type === 'ENLEVEMENT')
+      .map((p) => p.url as string);
+    const photosLivraison = rawPhotos
+      .filter((p) => p.type === 'LIVRAISON')
+      .map((p) => p.url as string);
+
     return {
       ...backendData,
 
@@ -19,10 +28,10 @@ export const commandesTransformerService = {
       dates: {
         commande: backendData.dateCommande,
         livraison: backendData.dateLivraison,
-        misAJour: backendData.updatedAt || backendData.dateCommande, // Date de dernière mise à jour
+        misAJour: backendData.updatedAt || backendData.dateCommande,
       },
 
-      // ✅ Structure livraison
+      // ✅ Structure livraison — peuple photosEnlevement/photosLivraison depuis photos[]
       livraison: backendData.livraison || {
         creneau: backendData.creneauLivraison || '',
         vehicule: backendData.categorieVehicule || '',
@@ -31,6 +40,8 @@ export const commandesTransformerService = {
         commentaireLivraison: backendData.commentaireLivraison || '',
         reserve: backendData.reserve || false,
         remarques: backendData.remarques || '',
+        photosEnlevement,
+        photosLivraison,
       },
     };
   },

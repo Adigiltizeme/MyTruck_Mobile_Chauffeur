@@ -126,11 +126,11 @@ export const apiService = {
   },
 
   /**
-   * DELETE request
+   * DELETE request (with optional body)
    */
-  async delete<T = any>(url: string): Promise<ApiResponse<T>> {
+  async delete<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
     try {
-      const response = await apiClient.delete<T>(url);
+      const response = await apiClient.delete<T>(url, { data });
       return {
         success: true,
         data: response.data,
