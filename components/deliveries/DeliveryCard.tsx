@@ -53,9 +53,9 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
 
   const isCession = commande.type === 'INTER_MAGASIN';
 
-  // Sous-titre : "Cédant → Demandeur" pour cessions, "NOM Prénom" pour commandes normales
+  // Sous-titre : "Demandeur → Cédant" pour cessions, "NOM Prénom" pour commandes normales
   const subtitle = isCession
-    ? [commande.magasin?.nom, commande.magasinDestination?.nom].filter(Boolean).join(' → ') || 'N/A'
+    ? [commande.magasinDestination?.nom, commande.magasin?.nom].filter(Boolean).join(' → ') || 'N/A'
     : commande.client
       ? `${commande.client.nom?.toUpperCase() || ''} ${commande.client.prenom || ''}`.trim() || 'N/A'
       : 'N/A';
