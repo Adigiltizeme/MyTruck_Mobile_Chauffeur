@@ -2,6 +2,7 @@
   "expo": {
     "name": "My Truck Chauffeur",
     "slug": "mobile-chauffeur",
+    "owner": "ad-digiltizeme",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -12,7 +13,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "bundleIdentifier": "com.mytruck.chauffeur",
       "supportsTablet": false,
@@ -23,10 +23,12 @@
         "NSCameraUsageDescription": "My Truck utilise la caméra pour photographier les preuves de livraison.",
         "NSPhotoLibraryUsageDescription": "My Truck accède à vos photos pour joindre des photos aux rapports de livraison.",
         "NSPhotoLibraryAddUsageDescription": "My Truck enregistre les photos de livraison dans votre galerie.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
       }
     },
-
     "android": {
       "package": "com.mytruck.chauffeur",
       "adaptiveIcon": {
@@ -42,14 +44,19 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
       [
         "expo-location",
@@ -65,6 +72,11 @@
           "cameraPermission": "My Truck utilise la caméra pour photographier les preuves de livraison."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ae6f5293-3c15-454b-baac-1097762ac82d"
+      }
+    }
   }
 }
