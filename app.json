@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile-chauffeur",
+    "name": "My Truck Chauffeur",
     "slug": "mobile-chauffeur",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,19 +12,59 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.mytruck.chauffeur",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "My Truck utilise votre position GPS pour le suivi en temps réel de vos livraisons.",
+        "NSLocationAlwaysUsageDescription": "My Truck utilise votre position en arrière-plan pour continuer le suivi GPS même quand l'app est fermée.",
+        "NSLocationWhenInUseUsageDescription": "My Truck utilise votre position pour afficher votre itinéraire de livraison.",
+        "NSCameraUsageDescription": "My Truck utilise la caméra pour photographier les preuves de livraison.",
+        "NSPhotoLibraryUsageDescription": "My Truck accède à vos photos pour joindre des photos aux rapports de livraison.",
+        "NSPhotoLibraryAddUsageDescription": "My Truck enregistre les photos de livraison dans votre galerie.",
+        "UIBackgroundModes": ["location", "fetch"]
+      }
     },
+
     "android": {
+      "package": "com.mytruck.chauffeur",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "My Truck utilise votre position GPS pour le suivi en temps réel de vos livraisons.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "My Truck utilise la caméra pour photographier les preuves de livraison."
+        }
+      ]
+    ]
   }
 }

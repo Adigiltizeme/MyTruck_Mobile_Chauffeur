@@ -15,7 +15,9 @@ export const API_PREFIX = '/api/v1';
 // URL complète API
 export const API_URL = `${API_BASE_URL}${API_PREFIX}`;
 
-console.log('🔗 [API] Base URL:', API_BASE_URL);
+if (__DEV__) {
+  console.log('🔗 [API] Base URL:', API_BASE_URL);
+}
 
 // Endpoints Auth
 export const AUTH_ENDPOINTS = {
