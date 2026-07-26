@@ -8,12 +8,8 @@ import axios from 'axios';
 
 // EXPO_PUBLIC_ requis par Expo pour exposer les variables au bundle JS
 // Fallbacks identiques au pattern de API.ts (URL Railway hardcodée)
-const CLOUD_NAME =
-  process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dpxqbfxqq';
-
-// upload_preset non signé — valeur déjà visible dans frontend/src/services/cloudinary.service.ts
-const UPLOAD_PRESET =
-  process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'my_truck_images';
+const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ?? '';
+const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? '';
 
 /**
  * Upload une photo (URI locale React Native) directement vers Cloudinary.

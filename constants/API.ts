@@ -3,11 +3,8 @@
  * URLs et endpoints pour connexion au backend NestJS
  */
 
-// URL Backend depuis variable d'environnement (.env → EXPO_PUBLIC_API_BASE_URL)
-// Fallback Railway si la variable n'est pas définie
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ||
-  'https://mytruckprojectbackend-production.up.railway.app';
+// URL Backend depuis variable d'environnement (EAS env ou .env local)
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
 // Préfixe API v1
 export const API_PREFIX = '/api/v1';
