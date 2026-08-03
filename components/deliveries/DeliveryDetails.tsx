@@ -1397,7 +1397,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         <View style={styles.rapportSection}>
           <Text style={styles.rapportSectionTitle}>Rapports & Réserves (facultatif)</Text>
           <Text style={styles.rapportSectionNote}>
-            Créer un rapport signale un problème et active la réserve My Truck.
+            Créer un rapport signale un problème et active la réserve My Truck, sauf pour prise de photos sans message.
           </Text>
 
           {/* Rapport d'enlèvement */}
