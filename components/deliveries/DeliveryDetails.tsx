@@ -1604,47 +1604,54 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               <Text style={styles.preuveSectionNote}>Envoi en cours...</Text>
             </View>
           )}
-          {/* Photos de preuve déjà uploadées (type PREUVE_LIVRAISON) */}
-          {commande.photos && commande.photos.filter(p => p.type === 'PREUVE_LIVRAISON').length > 0 && (
-            <View style={styles.preuvePhotoGrid}>
-              {commande.photos
-                .filter(p => p.type === 'PREUVE_LIVRAISON')
-                .map((photo, idx) => (
-                  <View key={photo.id || idx} style={styles.photoWithDelete}>
-                    <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
-                      <Image
-                        source={{ uri: photo.url }}
-                        style={styles.preuvePhotoItem}
-                        resizeMode="cover"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.deletePhotoButton}
-                      onPress={() => handleDeleteProofPhoto(photo.url)}
-                      disabled={deletingProofPhotoUrl === photo.url}
-                    >
-                      {deletingProofPhotoUrl === photo.url
-                        ? <ActivityIndicator size="small" color="#FFFFFF" />
-                        : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
-                      }
-                    </TouchableOpacity>
+          {/* Photos de preuve + signature côte à côte */}
+          {(commande.photos && commande.photos.filter(p => p.type === 'PREUVE_LIVRAISON').length > 0) || commande.signatureClient ? (
+            <View style={styles.preuveRowContainer}>
+              {/* Grille photos */}
+              {commande.photos && commande.photos.filter(p => p.type === 'PREUVE_LIVRAISON').length > 0 && (
+                <View style={styles.preuvePhotosCol}>
+                  <View style={styles.preuvePhotoGrid}>
+                    {commande.photos
+                      .filter(p => p.type === 'PREUVE_LIVRAISON')
+                      .map((photo, idx) => (
+                        <View key={photo.id || idx} style={styles.photoWithDelete}>
+                          <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                            <Image
+                              source={{ uri: photo.url }}
+                              style={styles.preuvePhotoItem}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.deletePhotoButton}
+                            onPress={() => handleDeleteProofPhoto(photo.url)}
+                            disabled={deletingProofPhotoUrl === photo.url}
+                          >
+                            {deletingProofPhotoUrl === photo.url
+                              ? <ActivityIndicator size="small" color="#FFFFFF" />
+                              : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                            }
+                          </TouchableOpacity>
+                        </View>
+                      ))}
                   </View>
-                ))}
+                </View>
+              )}
+              {/* Signature à droite */}
+              {commande.signatureClient && (
+                <View style={styles.signatureDisplayBlock}>
+                  <Text style={styles.signatureDisplayLabel}>✍️ Signature</Text>
+                  <TouchableOpacity onPress={() => setViewerUrl(commande.signatureClient!)} activeOpacity={0.85}>
+                    <Image
+                      source={{ uri: commande.signatureClient }}
+                      style={styles.signatureDisplayImage}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-          )}
-          {/* Signature de réception */}
-          {commande.signatureClient && (
-            <View style={styles.signatureDisplayBlock}>
-              <Text style={styles.signatureDisplayLabel}>✍️ Signature de réception</Text>
-              <TouchableOpacity onPress={() => setViewerUrl(commande.signatureClient!)} activeOpacity={0.85}>
-                <Image
-                  source={{ uri: commande.signatureClient }}
-                  style={styles.signatureDisplayImage}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-            </View>
-          )}
+          ) : null}
           <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
         </View>
       )}
@@ -2459,9 +2466,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
+  preuveRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+  },
+  preuvePhotosCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   signatureDisplayBlock: {
-    marginTop: 16,
-    padding: 12,
+    width: 120,
+    flexShrink: 0,
+    padding: 8,
     backgroundColor: '#F0FDF4',
     borderRadius: 8,
     borderWidth: 1,
