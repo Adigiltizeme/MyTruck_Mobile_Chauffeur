@@ -248,22 +248,21 @@ export const commandesService = {
    * @param commandeId - ID de la commande
    */
   /**
-   * Sauvegarder une signature comme preuve de livraison (photo de type LIVRAISON)
-   * La signature n'est PAS un rapport d'incident — c'est une preuve de réception.
+   * Enregistrer la signature client comme preuve de livraison.
+   * Stockée directement sur la Commande (champ signatureClient) — séparée des Photos et des Rapports.
    */
-  async saveSignatureAsProof(
+  async saveSignatureLivraison(
     commandeId: string,
     signatureUrl: string,
-    filename: string
   ): Promise<ApiResponse<any>> {
     try {
-      console.log('✍️ [COMMANDES] Sauvegarde signature comme preuve livraison:', commandeId);
-      const response = await apiService.post(
-        COMMANDES_ENDPOINTS.ADD_PHOTO(commandeId),
-        { photos: [{ url: signatureUrl, filename }] }
+      console.log('✍️ [COMMANDES] Sauvegarde signature livraison:', commandeId);
+      const response = await apiService.patch(
+        COMMANDES_ENDPOINTS.SAVE_SIGNATURE(commandeId),
+        { signatureUrl }
       );
       if (response.success) {
-        console.log('✅ [COMMANDES] Signature enregistrée comme preuve de livraison');
+        console.log('✅ [COMMANDES] Signature enregistrée sur la commande');
       }
       return response;
     } catch (error) {

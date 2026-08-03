@@ -777,7 +777,6 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
 
   // ── Signature après livraison ──
   const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
   const [savingSignature, setSavingSignature] = useState(false);
   const signatureRef = React.useRef<any>(null);
 
@@ -914,7 +913,6 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               } else if (targetStatus === 'LIVREE') {
                 gpsTrackingService.stop().then(() => setTrackingStatus('idle'));
                 // Afficher le modal de signature après confirmation de livraison
-                setSignatureBase64(null);
                 setShowSignatureModal(true);
               }
             } else {
@@ -964,15 +962,19 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     ]);
   }, [commande.id, onStatusChanged]);
 
-  // ── Signature : sauvegarder comme preuve de livraison (photo LIVRAISON) ──
-  const handleSaveSignature = useCallback(async () => {
-    if (!signatureBase64) return;
+  // ── Signature : déclencher la lecture du canvas → onOK gère l'upload ──
+  const handleSaveSignature = useCallback(() => {
+    if (savingSignature) return;
     setSavingSignature(true);
+    // readSignature() déclenche onOK avec les données base64, ou onEmpty si vide
+    signatureRef.current?.readSignature();
+  }, [savingSignature]);
+
+  // ── Signature : callback onOK — reçoit le base64 et sauvegarde ──
+  const handleSignatureOK = useCallback(async (sig: string) => {
     try {
-      // 1. Upload la signature (base64) sur Cloudinary
-      const { url, filename } = await uploadBase64ToCloudinary(signatureBase64, 'signature_client');
-      // 2. Sauvegarder l'URL comme photo de preuve de livraison (pas un rapport)
-      await commandesService.saveSignatureAsProof(commande.id, url, filename);
+      const { url } = await uploadBase64ToCloudinary(sig, 'signature_client');
+      await commandesService.saveSignatureLivraison(commande.id, url);
       setShowSignatureModal(false);
       Alert.alert('Signature enregistrée', 'La signature de livraison a été sauvegardée.');
     } catch (e: any) {
@@ -980,7 +982,13 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     } finally {
       setSavingSignature(false);
     }
-  }, [signatureBase64, commande.id]);
+  }, [commande.id]);
+
+  // ── Signature : canvas vide quand l'utilisateur n'a pas signé ──
+  const handleSignatureEmpty = useCallback(() => {
+    setSavingSignature(false);
+    Alert.alert('Signature manquante', 'Veuillez signer avant d\'enregistrer.');
+  }, []);
 
   // ── Toggle formulaire rapport ──
   const toggleRapport = useCallback((type: 'ENLEVEMENT' | 'LIVRAISON') => {
@@ -1596,11 +1604,11 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               <Text style={styles.preuveSectionNote}>Envoi en cours...</Text>
             </View>
           )}
-          {/* Photos de preuve déjà uploadées */}
-          {commande.photos && commande.photos.filter(p => p.type === 'LIVRAISON').length > 0 && (
+          {/* Photos de preuve déjà uploadées (type PREUVE_LIVRAISON) */}
+          {commande.photos && commande.photos.filter(p => p.type === 'PREUVE_LIVRAISON').length > 0 && (
             <View style={styles.preuvePhotoGrid}>
               {commande.photos
-                .filter(p => p.type === 'LIVRAISON')
+                .filter(p => p.type === 'PREUVE_LIVRAISON')
                 .map((photo, idx) => (
                   <View key={photo.id || idx} style={styles.photoWithDelete}>
                     <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
@@ -1648,25 +1656,23 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         <View style={styles.signatureCanvasWrapper}>
           <SignatureCanvas
             ref={signatureRef}
-            onOK={(sig) => setSignatureBase64(sig)}
-            onEmpty={() => setSignatureBase64(null)}
+            onOK={handleSignatureOK}
+            onEmpty={handleSignatureEmpty}
             autoClear={false}
             descriptionText=""
-            clearText="Effacer"
-            confirmText="Valider"
-            webStyle={`.m-signature-pad { box-shadow: none; border: 1px solid #E5E7EB; border-radius: 8px; }
+            webStyle={`.m-signature-pad { box-shadow: none; border: none; }
               .m-signature-pad--body { border: none; }
-              .m-signature-pad--footer { background: #F9FAFB; border-top: 1px solid #E5E7EB; }
-              body { background: #F9FAFB; }`}
+              .m-signature-pad--footer { display: none; }
+              body { background: #FFFFFF; }`}
             style={{ flex: 1 }}
           />
         </View>
 
         <View style={styles.signatureModalFooter}>
           <TouchableOpacity
-            style={[styles.signatureSaveButton, (!signatureBase64 || savingSignature) && styles.signatureSaveButtonDisabled]}
+            style={[styles.signatureSaveButton, savingSignature && styles.signatureSaveButtonDisabled]}
             onPress={handleSaveSignature}
-            disabled={!signatureBase64 || savingSignature}
+            disabled={savingSignature}
             activeOpacity={0.8}
           >
             {savingSignature

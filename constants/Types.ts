@@ -6,7 +6,7 @@
 // Types de statuts
 export type StatutCommande = 'En attente' | 'Confirmée' | 'En cours' | 'Livrée' | 'Annulée';
 export type StatutLivraison = 'EN ATTENTE' | 'CONFIRMEE' | 'ENLEVEE' | 'EN COURS DE LIVRAISON' | 'LIVREE' | 'ANNULEE' | 'ECHEC';
-export type PhotoType = 'ARTICLE' | 'ENLEVEMENT' | 'LIVRAISON';
+export type PhotoType = 'ARTICLE' | 'ENLEVEMENT' | 'LIVRAISON' | 'PREUVE_LIVRAISON';
 export type RapportType = 'ENLEVEMENT' | 'LIVRAISON';
 
 // Utilisateur (Chauffeur)

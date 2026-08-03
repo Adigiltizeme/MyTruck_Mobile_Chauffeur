@@ -36,6 +36,7 @@ export const COMMANDES_ENDPOINTS = {
   GET_RAPPORTS: (id: string) => `/commandes/${id}/rapports`,
   UPDATE_RAPPORT: (id: string, type: string) => `/commandes/${id}/rapports/${type}`,
   DELETE_RAPPORT: (id: string, type: string) => `/commandes/${id}/rapports/${type}`,
+  SAVE_SIGNATURE: (id: string) => `/commandes/${id}/signature-livraison`,
 };
 
 // Endpoints Tracking GPS
