@@ -175,6 +175,9 @@ export interface Commande {
   // Vendeur / responsable magasin
   prenomVendeur?: string;
 
+  // Preuve de livraison — URL Cloudinary de la signature digitale
+  signatureClient?: string;
+
   // Autres champs
   tarifHT?: number;
   tarifTTC?: number;

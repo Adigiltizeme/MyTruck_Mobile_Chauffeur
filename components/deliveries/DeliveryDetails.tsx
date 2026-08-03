@@ -1632,6 +1632,19 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                 ))}
             </View>
           )}
+          {/* Signature de réception */}
+          {commande.signatureClient && (
+            <View style={styles.signatureDisplayBlock}>
+              <Text style={styles.signatureDisplayLabel}>✍️ Signature de réception</Text>
+              <TouchableOpacity onPress={() => setViewerUrl(commande.signatureClient!)} activeOpacity={0.85}>
+                <Image
+                  source={{ uri: commande.signatureClient }}
+                  style={styles.signatureDisplayImage}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
+            </View>
+          )}
           <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
         </View>
       )}
@@ -2445,5 +2458,27 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontSize: 15,
     fontWeight: '500',
+  },
+  signatureDisplayBlock: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  signatureDisplayLabel: {
+    fontSize: 13,
+    color: '#16A34A',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  signatureDisplayImage: {
+    width: '100%',
+    height: 120,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#D1FAE5',
   },
 });
