@@ -71,7 +71,9 @@
         {
           "cameraPermission": "My Truck utilise la caméra pour photographier les preuves de livraison."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {

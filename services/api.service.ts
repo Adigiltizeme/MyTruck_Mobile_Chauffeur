@@ -31,8 +31,10 @@ apiClient.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
 
-      console.log(`📤 [API REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
-      console.log(`🔗 [API] Full URL: ${config.baseURL}${config.url}`);
+      if (__DEV__) {
+        console.log(`📤 [API REQUEST] ${config.method?.toUpperCase()} ${config.url}`);
+        console.log(`🔗 [API] Full URL: ${config.baseURL}${config.url}`);
+      }
 
       return config;
     } catch (error) {
@@ -51,7 +53,7 @@ apiClient.interceptors.request.use(
  */
 apiClient.interceptors.response.use(
   (response) => {
-    console.log(`📥 [API RESPONSE] ${response.status} ${response.config.url}`);
+    if (__DEV__) console.log(`📥 [API RESPONSE] ${response.status} ${response.config.url}`);
     return response;
   },
   async (error: AxiosError) => {

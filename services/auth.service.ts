@@ -15,7 +15,7 @@ export const authService = {
    */
   async login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
     try {
-      console.log('🔐 [AUTH] Tentative de connexion:', email);
+      if (__DEV__) console.log('🔐 [AUTH] Tentative de connexion:', email);
 
       const response = await apiService.post<LoginResponse>(AUTH_ENDPOINTS.LOGIN, {
         email,
@@ -28,7 +28,7 @@ export const authService = {
         const token = backendData.access_token || backendData.token;
         const user = backendData.user;
 
-        console.log('🔍 [AUTH] Réponse backend:', JSON.stringify({
+        if (__DEV__) console.log('🔍 [AUTH] Réponse backend:', JSON.stringify({
           hasAccessToken: !!backendData.access_token,
           hasToken: !!backendData.token,
           userRole: user?.role,
@@ -55,7 +55,7 @@ export const authService = {
         await apiService.setToken(token);
         await apiService.setUser(user);
 
-        console.log('✅ [AUTH] Connexion réussie:', user.email);
+        if (__DEV__) console.log('✅ [AUTH] Connexion réussie:', user.email);
 
         return {
           success: true,
@@ -81,7 +81,7 @@ export const authService = {
    */
   async logout(): Promise<void> {
     try {
-      console.log('🚪 [AUTH] Déconnexion...');
+      if (__DEV__) console.log('🚪 [AUTH] Déconnexion...');
 
       // Appel backend (optionnel)
       // await apiService.post(AUTH_ENDPOINTS.LOGOUT);
@@ -89,7 +89,7 @@ export const authService = {
       // Supprimer token et user localement
       await apiService.clearAuth();
 
-      console.log('✅ [AUTH] Déconnexion réussie');
+      if (__DEV__) console.log('✅ [AUTH] Déconnexion réussie');
     } catch (error) {
       console.error('❌ [AUTH] Erreur logout:', error);
       // Supprimer quand même les données locales

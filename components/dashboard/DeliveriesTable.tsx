@@ -119,17 +119,9 @@ const DeliveryRow: React.FC<DeliveryRowProps> = ({ commande, onPress }) => {
   const currentLivraisonStatus = commande.statutLivraison || 'EN ATTENTE';
 
   useEffect(() => {
-    // 🔍 DEBUG: Afficher structure dates de la commande
-    console.log('🔍 [DeliveryRow] Commande:', commande.id);
-    console.log('🔍 [DeliveryRow] Statut:', currentLivraisonStatus);
-    console.log('🔍 [DeliveryRow] dates:', commande.dates);
-    console.log('🔍 [DeliveryRow] dateCommande:', commande.dateCommande);
-    console.log('🔍 [DeliveryRow] dateLivraison:', commande.dateLivraison);
-
     getSmartStatusDate(commande, 'livraison', currentLivraisonStatus).then((date) => {
-      console.log('🔍 [DeliveryRow] Date calculée:', date);
       setStatusDate(date);
-      setRealTime(format(date, 'HH:mm')); // ✅ Pré-formatter l'heure comme dans le web
+      setRealTime(format(date, 'HH:mm'));
     });
   }, [commande.id, currentLivraisonStatus]);
 

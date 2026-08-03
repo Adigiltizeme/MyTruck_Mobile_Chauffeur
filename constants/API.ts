@@ -34,6 +34,8 @@ export const COMMANDES_ENDPOINTS = {
   DELETE_PHOTO: (id: string) => `/commandes/${id}/photos`,
   CREATE_RAPPORT: (id: string) => `/commandes/${id}/rapports`,
   GET_RAPPORTS: (id: string) => `/commandes/${id}/rapports`,
+  UPDATE_RAPPORT: (id: string, type: string) => `/commandes/${id}/rapports/${type}`,
+  DELETE_RAPPORT: (id: string, type: string) => `/commandes/${id}/rapports/${type}`,
 };
 
 // Endpoints Tracking GPS

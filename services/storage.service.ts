@@ -1,119 +1,124 @@
 /**
  * Service de stockage multi-plateforme
- * Gère AsyncStorage (mobile) et localStorage (web)
+ * - Token JWT : expo-secure-store (iOS Keychain / Android Keystore chiffré)
+ * - Données utilisateur : AsyncStorage (JSON > 2KB, moins critique)
+ * - Web : localStorage pour les deux
  */
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
-// Clés de stockage
 const TOKEN_KEY = 'authToken';
 const USER_KEY = 'userData';
 
-/**
- * Service de stockage qui fonctionne sur mobile ET web
- */
+// ─── Token via SecureStore (chiffré) ─────────────────────────────────────────
+
+const setSecureToken = async (value: string): Promise<void> => {
+  if (Platform.OS === 'web') {
+    localStorage.setItem(TOKEN_KEY, value);
+  } else {
+    await SecureStore.setItemAsync(TOKEN_KEY, value);
+  }
+};
+
+const getSecureToken = async (): Promise<string | null> => {
+  if (Platform.OS === 'web') {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+  return await SecureStore.getItemAsync(TOKEN_KEY);
+};
+
+const deleteSecureToken = async (): Promise<void> => {
+  if (Platform.OS === 'web') {
+    localStorage.removeItem(TOKEN_KEY);
+  } else {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+  }
+};
+
+// ─── Données utilisateur via AsyncStorage ────────────────────────────────────
+
+const setAsync = async (key: string, value: string): Promise<void> => {
+  if (Platform.OS === 'web') {
+    localStorage.setItem(key, value);
+  } else {
+    await AsyncStorage.setItem(key, value);
+  }
+};
+
+const getAsync = async (key: string): Promise<string | null> => {
+  if (Platform.OS === 'web') {
+    return localStorage.getItem(key);
+  }
+  return await AsyncStorage.getItem(key);
+};
+
+const removeAsync = async (key: string): Promise<void> => {
+  if (Platform.OS === 'web') {
+    localStorage.removeItem(key);
+  } else {
+    await AsyncStorage.removeItem(key);
+  }
+};
+
+// ─── Service public ───────────────────────────────────────────────────────────
+
 export const StorageService = {
-  /**
-   * Sauvegarder une valeur
-   */
   async setItem(key: string, value: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      // Mode Web - Utiliser localStorage
-      localStorage.setItem(key, value);
+    if (key === TOKEN_KEY) {
+      await setSecureToken(value);
     } else {
-      // Mode Mobile - Utiliser AsyncStorage
-      await AsyncStorage.setItem(key, value);
+      await setAsync(key, value);
     }
   },
 
-  /**
-   * Récupérer une valeur
-   */
   async getItem(key: string): Promise<string | null> {
-    if (Platform.OS === 'web') {
-      // Mode Web - Utiliser localStorage
-      return localStorage.getItem(key);
-    } else {
-      // Mode Mobile - Utiliser AsyncStorage
-      return await AsyncStorage.getItem(key);
+    if (key === TOKEN_KEY) {
+      return await getSecureToken();
     }
+    return await getAsync(key);
   },
 
-  /**
-   * Supprimer une valeur
-   */
   async removeItem(key: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      // Mode Web - Utiliser localStorage
-      localStorage.removeItem(key);
+    if (key === TOKEN_KEY) {
+      await deleteSecureToken();
     } else {
-      // Mode Mobile - Utiliser AsyncStorage
-      await AsyncStorage.removeItem(key);
+      await removeAsync(key);
     }
   },
 
-  /**
-   * Supprimer plusieurs valeurs
-   */
   async multiRemove(keys: string[]): Promise<void> {
-    if (Platform.OS === 'web') {
-      // Mode Web - Utiliser localStorage
-      keys.forEach((key) => localStorage.removeItem(key));
-    } else {
-      // Mode Mobile - Utiliser AsyncStorage
-      await AsyncStorage.multiRemove(keys);
-    }
+    await Promise.all(keys.map((key) => this.removeItem(key)));
   },
 
-  /**
-   * Sauvegarder le token
-   */
   async setToken(token: string): Promise<void> {
-    await this.setItem(TOKEN_KEY, token);
+    await setSecureToken(token);
   },
 
-  /**
-   * Récupérer le token
-   */
   async getToken(): Promise<string | null> {
-    return await this.getItem(TOKEN_KEY);
+    return await getSecureToken();
   },
 
-  /**
-   * Supprimer le token
-   */
   async removeToken(): Promise<void> {
-    await this.removeItem(TOKEN_KEY);
+    await deleteSecureToken();
   },
 
-  /**
-   * Sauvegarder les données utilisateur
-   */
   async setUser(user: any): Promise<void> {
-    await this.setItem(USER_KEY, JSON.stringify(user));
+    await setAsync(USER_KEY, JSON.stringify(user));
   },
 
-  /**
-   * Récupérer les données utilisateur
-   */
   async getUser(): Promise<any | null> {
-    const userData = await this.getItem(USER_KEY);
+    const userData = await getAsync(USER_KEY);
     return userData ? JSON.parse(userData) : null;
   },
 
-  /**
-   * Supprimer les données utilisateur
-   */
   async removeUser(): Promise<void> {
-    await this.removeItem(USER_KEY);
+    await removeAsync(USER_KEY);
   },
 
-  /**
-   * Nettoyer toutes les données d'authentification
-   */
   async clearAuth(): Promise<void> {
-    await this.multiRemove([TOKEN_KEY, USER_KEY]);
+    await Promise.all([deleteSecureToken(), removeAsync(USER_KEY)]);
   },
 };
 

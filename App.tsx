@@ -8,6 +8,7 @@
 // Il lit la config depuis AsyncStorage et appelle le REST pour mettre à jour la position
 // (le backend émettra chauffeur-location via WebSocket pour que l'admin voie la position)
 // ──────────────────────────────────────────────────────────────────────────────
+import './global.css';
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -47,7 +48,7 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
       }),
     });
 
-    console.log(`[GPS BG] 📍 ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
+    if (__DEV__) console.log(`[GPS BG] 📍 ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`);
   } catch (err) {
     console.error('[GPS BG] Erreur REST:', err);
   }

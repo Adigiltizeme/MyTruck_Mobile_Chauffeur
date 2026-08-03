@@ -247,6 +247,31 @@ export const commandesService = {
    * Récupérer les rapports d'une commande
    * @param commandeId - ID de la commande
    */
+  /**
+   * Sauvegarder une signature comme preuve de livraison (photo de type LIVRAISON)
+   * La signature n'est PAS un rapport d'incident — c'est une preuve de réception.
+   */
+  async saveSignatureAsProof(
+    commandeId: string,
+    signatureUrl: string,
+    filename: string
+  ): Promise<ApiResponse<any>> {
+    try {
+      console.log('✍️ [COMMANDES] Sauvegarde signature comme preuve livraison:', commandeId);
+      const response = await apiService.post(
+        COMMANDES_ENDPOINTS.ADD_PHOTO(commandeId),
+        { photos: [{ url: signatureUrl, filename }] }
+      );
+      if (response.success) {
+        console.log('✅ [COMMANDES] Signature enregistrée comme preuve de livraison');
+      }
+      return response;
+    } catch (error) {
+      console.error('❌ [COMMANDES] Erreur sauvegarde signature:', error);
+      return { success: false, error: 'Erreur lors de la sauvegarde de la signature' };
+    }
+  },
+
   async getRapports(commandeId: string): Promise<ApiResponse<any[]>> {
     try {
       const response = await apiService.get(COMMANDES_ENDPOINTS.GET_RAPPORTS(commandeId));
@@ -257,6 +282,57 @@ export const commandesService = {
         success: false,
         error: 'Erreur lors de la récupération des rapports',
       };
+    }
+  },
+
+  /**
+   * Modifier un rapport existant
+   * @param commandeId - ID de la commande
+   * @param rapportType - Type de rapport (ENLEVEMENT | LIVRAISON)
+   * @param updateData - Données à modifier
+   */
+  async updateRapport(
+    commandeId: string,
+    rapportType: RapportType,
+    updateData: { message?: string }
+  ): Promise<ApiResponse<any>> {
+    try {
+      console.log('✏️ [COMMANDES] Modification rapport:', rapportType, commandeId);
+      const response = await apiService.patch(
+        COMMANDES_ENDPOINTS.UPDATE_RAPPORT(commandeId, rapportType),
+        updateData
+      );
+      if (response.success) {
+        console.log('✅ [COMMANDES] Rapport modifié avec succès');
+      }
+      return response;
+    } catch (error) {
+      console.error('❌ [COMMANDES] Erreur modification rapport:', error);
+      return { success: false, error: 'Erreur lors de la modification du rapport' };
+    }
+  },
+
+  /**
+   * Supprimer un rapport
+   * @param commandeId - ID de la commande
+   * @param rapportType - Type de rapport (ENLEVEMENT | LIVRAISON)
+   */
+  async deleteRapport(
+    commandeId: string,
+    rapportType: RapportType
+  ): Promise<ApiResponse<any>> {
+    try {
+      console.log('🗑️ [COMMANDES] Suppression rapport:', rapportType, commandeId);
+      const response = await apiService.delete(
+        COMMANDES_ENDPOINTS.DELETE_RAPPORT(commandeId, rapportType)
+      );
+      if (response.success) {
+        console.log('✅ [COMMANDES] Rapport supprimé avec succès');
+      }
+      return response;
+    } catch (error) {
+      console.error('❌ [COMMANDES] Erreur suppression rapport:', error);
+      return { success: false, error: 'Erreur lors de la suppression du rapport' };
     }
   },
 };

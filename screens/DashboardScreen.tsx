@@ -52,14 +52,14 @@ export default function DashboardScreen() {
     }
 
     try {
-      console.log('📦 Chargement commandes pour chauffeur:', chauffeurId);
+      if (__DEV__) console.log('📦 Chargement commandes pour chauffeur:', chauffeurId);
 
       const response = await commandesService.getCommandesByChauffeur(chauffeurId);
 
       if (response.success && response.data) {
         const commandesList = Array.isArray(response.data) ? response.data : [];
         setCommandes(commandesList);
-        console.log(`✅ ${commandesList.length} commandes chargées`);
+        if (__DEV__) console.log(`✅ ${commandesList.length} commandes chargées`);
       } else {
         console.error('❌ Erreur chargement commandes:', response.error);
         setCommandes([]);
@@ -375,7 +375,7 @@ export default function DashboardScreen() {
 
   // ✅ Gestionnaire navigation vers détails
   const handleCommandePress = (commandeId: string) => {
-    console.log('📦 Navigation vers commande:', commandeId);
+    if (__DEV__) console.log('📦 Navigation vers commande:', commandeId);
     // TODO: Navigation vers CommandeDetailsScreen
   };
 

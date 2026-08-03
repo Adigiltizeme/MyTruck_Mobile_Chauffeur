@@ -40,6 +40,7 @@ export interface Magasin {
   codePostal: string;
   ville: string;
   email?: string;
+  manager?: string;
 }
 
 // Client
@@ -170,6 +171,9 @@ export interface Commande {
   isDuplex?: boolean;
   deliveryToUpperFloor?: boolean;
   paletteComplete?: boolean;
+
+  // Vendeur / responsable magasin
+  prenomVendeur?: string;
 
   // Autres champs
   tarifHT?: number;

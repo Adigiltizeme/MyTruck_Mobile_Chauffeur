@@ -45,12 +45,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const checkAuth = async () => {
     try {
-      console.log('🔐 [AUTH] Vérification session...');
+      if (__DEV__) console.log('🔐 [AUTH] Vérification session...');
 
       const session = await authService.getSession();
 
       if (session) {
-        console.log('✅ [AUTH] Session trouvée:', session.user.email);
+        if (__DEV__) console.log('✅ [AUTH] Session trouvée:', session.user.email);
 
         setState({
           isAuthenticated: true,
@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           loading: false,
         });
       } else {
-        console.log('⚠️ [AUTH] Aucune session trouvée');
+        if (__DEV__) console.log('⚠️ [AUTH] Aucune session trouvée');
 
         setState({
           isAuthenticated: false,
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     password: string
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      console.log('🔐 [AUTH] Tentative de connexion:', email);
+      if (__DEV__) console.log('🔐 [AUTH] Tentative de connexion:', email);
 
       // Appeler le service auth
       const response = await authService.login(email, password);
@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.success && response.data) {
         const { token, user } = response.data;
 
-        console.log('✅ [AUTH] Connexion réussie:', user.email);
+        if (__DEV__) console.log('✅ [AUTH] Connexion réussie:', user.email);
 
         // Mettre à jour l'état
         setState({
@@ -130,7 +130,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const logout = async (): Promise<void> => {
     try {
-      console.log('🚪 [AUTH] Déconnexion...');
+      if (__DEV__) console.log('🚪 [AUTH] Déconnexion...');
 
       await authService.logout();
 
@@ -141,7 +141,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         loading: false,
       });
 
-      console.log('✅ [AUTH] Déconnexion réussie');
+      if (__DEV__) console.log('✅ [AUTH] Déconnexion réussie');
     } catch (error) {
       console.error('❌ [AUTH] Erreur logout:', error);
 

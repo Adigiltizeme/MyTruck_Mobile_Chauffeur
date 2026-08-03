@@ -165,7 +165,7 @@ export default function DeliveriesListScreen() {
   }, [commandes, dateRange, customDateRange]);
 
   const handleCommandePress = (commandeId: string) => {
-    console.log('📦 Navigation vers commande:', commandeId);
+    if (__DEV__) console.log('📦 Navigation vers commande:', commandeId);
     // TODO: Navigation vers CommandeDetailsScreen
   };
 

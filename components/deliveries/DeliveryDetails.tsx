@@ -27,8 +27,9 @@ import { gpsTrackingService, type TrackingStatus } from '../../services/gps-trac
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import commandesService from '../../services/commandes.service';
-import { uploadPhotoToCloudinary } from '../../services/cloudinary.service';
+import { uploadPhotoToCloudinary, uploadBase64ToCloudinary } from '../../services/cloudinary.service';
 import { useAuth } from '../../contexts/AuthContext';
+import SignatureCanvas from 'react-native-signature-canvas';
 
 type TabType = 'info' | 'conditions' | 'photos-articles' | 'photos-comments' | 'chronologie' | 'actions';
 
@@ -104,13 +105,19 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
 };
 
 // ─── Bloc magasin réutilisable ─────────────────────────────────────────────
-const MagasinBlock: React.FC<{ titre: string; magasin?: Commande['magasin'] }> = ({ titre, magasin }) => (
+const MagasinBlock: React.FC<{ titre: string; magasin?: Commande['magasin']; vendeur?: string }> = ({ titre, magasin, vendeur }) => (
   <View style={styles.section}>
     <Text style={styles.sectionTitle}>{titre}</Text>
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>Nom:</Text>
       <Text style={styles.infoValue}>{magasin?.nom || 'N/A'}</Text>
     </View>
+    {vendeur ? (
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>Vendeur:</Text>
+        <Text style={styles.infoValue}>{vendeur}</Text>
+      </View>
+    ) : null}
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>Téléphone:</Text>
       <Text style={[styles.infoValue, styles.phoneLink]}>{magasin?.telephone || 'N/A'}</Text>
@@ -137,15 +144,27 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
       {isCession ? (
         <>
           {/* Cession : Magasin cédant (origine) */}
-          <MagasinBlock titre="Magasin cédant (origine)" magasin={commande.magasin} />
+          <MagasinBlock
+            titre="Magasin cédant (origine)"
+            magasin={commande.magasin}
+            vendeur={commande.prenomVendeur || commande.magasin?.manager}
+          />
 
           {/* Cession : Magasin demandeur (destination) */}
-          <MagasinBlock titre="Magasin demandeur (destination)" magasin={commande.magasinDestination} />
+          <MagasinBlock
+            titre="Magasin demandeur (destination)"
+            magasin={commande.magasinDestination}
+            vendeur={commande.magasinDestination?.manager}
+          />
         </>
       ) : (
         <>
           {/* Commande normale : Magasin */}
-          <MagasinBlock titre="Magasin" magasin={commande.magasin} />
+          <MagasinBlock
+            titre="Magasin"
+            magasin={commande.magasin}
+            vendeur={commande.prenomVendeur || commande.magasin?.manager}
+          />
 
           {/* Commande normale : Client */}
           <View style={styles.section}>
@@ -389,6 +408,10 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
   const [loading, setLoading] = useState(true);
   const [deletingPhotoUrl, setDeletingPhotoUrl] = useState<string | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [editingRapportType, setEditingRapportType] = useState<'ENLEVEMENT' | 'LIVRAISON' | null>(null);
+  const [editMessage, setEditMessage] = useState('');
+  const [loadingEdit, setLoadingEdit] = useState(false);
+  const [deletingRapportType, setDeletingRapportType] = useState<'ENLEVEMENT' | 'LIVRAISON' | null>(null);
 
   const loadRapports = useCallback(async () => {
     setLoading(true);
@@ -431,6 +454,59 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
               Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
             } finally {
               setDeletingPhotoUrl(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditRapport = (type: 'ENLEVEMENT' | 'LIVRAISON', rapport: any) => {
+    setEditingRapportType(type);
+    setEditMessage(rapport.message || '');
+  };
+
+  const handleSubmitEdit = async () => {
+    if (!editingRapportType) return;
+    setLoadingEdit(true);
+    try {
+      const res = await commandesService.updateRapport(commande.id, editingRapportType, { message: editMessage });
+      if (res.success) {
+        setEditingRapportType(null);
+        await loadRapports();
+      } else {
+        Alert.alert('Erreur', res.error || 'Impossible de modifier le rapport');
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+    } finally {
+      setLoadingEdit(false);
+    }
+  };
+
+  const handleDeleteRapport = (type: 'ENLEVEMENT' | 'LIVRAISON') => {
+    Alert.alert(
+      'Supprimer le rapport',
+      'Êtes-vous sûr de vouloir supprimer ce rapport ? Cette action est irréversible.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingRapportType(type);
+            try {
+              const res = await commandesService.deleteRapport(commande.id, type);
+              if (res.success) {
+                onStatusChanged?.();
+                await loadRapports();
+              } else {
+                Alert.alert('Erreur', res.error || 'Impossible de supprimer le rapport');
+              }
+            } catch (e: any) {
+              Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+            } finally {
+              setDeletingRapportType(null);
             }
           },
         },
@@ -502,6 +578,28 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
               </View>
             </View>
           )}
+
+          {/* Boutons Modifier / Supprimer */}
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12 }}>
+            <TouchableOpacity
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, backgroundColor: '#EFF6FF', borderRadius: 6, borderWidth: 1, borderColor: '#BFDBFE' }}
+              onPress={() => handleEditRapport(type, rapport)}
+            >
+              <Ionicons name="pencil-outline" size={14} color="#1D4ED8" />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#1D4ED8' }}>Modifier</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, backgroundColor: '#FEF2F2', borderRadius: 6, borderWidth: 1, borderColor: '#FECACA', opacity: deletingRapportType === type ? 0.6 : 1 }}
+              onPress={() => handleDeleteRapport(type)}
+              disabled={deletingRapportType === type}
+            >
+              {deletingRapportType === type
+                ? <ActivityIndicator size="small" color="#DC2626" />
+                : <Ionicons name="trash-outline" size={14} color="#DC2626" />
+              }
+              <Text style={{ fontSize: 13, fontWeight: '600', color: '#DC2626' }}>Supprimer</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -530,19 +628,64 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
   }
 
   return (
-    <ScrollView style={styles.tabContent}>
-      {rapports?.enlevement?.map((rapport: any, idx: number) => (
-        <React.Fragment key={rapport.id || `enlev-${idx}`}>
-          {renderRapportBlock(rapport, 'ENLEVEMENT')}
-        </React.Fragment>
-      ))}
-      {rapports?.livraison?.map((rapport: any, idx: number) => (
-        <React.Fragment key={rapport.id || `liv-${idx}`}>
-          {renderRapportBlock(rapport, 'LIVRAISON')}
-        </React.Fragment>
-      ))}
-      <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
-    </ScrollView>
+    <>
+      <ScrollView style={styles.tabContent}>
+        {rapports?.enlevement?.map((rapport: any, idx: number) => (
+          <React.Fragment key={rapport.id || `enlev-${idx}`}>
+            {renderRapportBlock(rapport, 'ENLEVEMENT')}
+          </React.Fragment>
+        ))}
+        {rapports?.livraison?.map((rapport: any, idx: number) => (
+          <React.Fragment key={rapport.id || `liv-${idx}`}>
+            {renderRapportBlock(rapport, 'LIVRAISON')}
+          </React.Fragment>
+        ))}
+        <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+      </ScrollView>
+
+      {/* Modal modification rapport */}
+      <Modal visible={editingRapportType !== null} transparent animationType="slide" onRequestClose={() => setEditingRapportType(null)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 4 }}>
+              Modifier le rapport
+            </Text>
+            <Text style={{ fontSize: 13, color: '#6B7280', marginBottom: 12 }}>
+              {editingRapportType === 'ENLEVEMENT' ? "Rapport d'enlèvement" : 'Rapport de livraison'}
+            </Text>
+            <TextInput
+              style={{ backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 8, padding: 12, fontSize: 14, color: '#111827', minHeight: 80, textAlignVertical: 'top' }}
+              value={editMessage}
+              onChangeText={setEditMessage}
+              placeholder="Commentaire du rapport..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: '#D1D5DB', alignItems: 'center' }}
+                onPress={() => setEditingRapportType(null)}
+                disabled={loadingEdit}
+              >
+                <Text style={{ fontSize: 14, color: '#6B7280', fontWeight: '500' }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 2, paddingVertical: 12, borderRadius: 8, backgroundColor: '#3B82F6', alignItems: 'center', opacity: loadingEdit ? 0.6 : 1 }}
+                onPress={handleSubmitEdit}
+                disabled={loadingEdit}
+              >
+                {loadingEdit
+                  ? <ActivityIndicator color="#FFFFFF" size="small" />
+                  : <Text style={{ fontSize: 14, color: '#FFFFFF', fontWeight: '600' }}>Enregistrer</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -631,6 +774,12 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
 
     return initial;
   });
+
+  // ── Signature après livraison ──
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
+  const [savingSignature, setSavingSignature] = useState(false);
+  const signatureRef = React.useRef<any>(null);
 
   // ── Rapport (un seul formulaire actif à la fois) ──
   const [activeRapportType, setActiveRapportType] = useState<'ENLEVEMENT' | 'LIVRAISON' | null>(null);
@@ -764,6 +913,9 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                 startTracking();
               } else if (targetStatus === 'LIVREE') {
                 gpsTrackingService.stop().then(() => setTrackingStatus('idle'));
+                // Afficher le modal de signature après confirmation de livraison
+                setSignatureBase64(null);
+                setShowSignatureModal(true);
               }
             } else {
               setLoadingAction(false);
@@ -811,6 +963,24 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
       },
     ]);
   }, [commande.id, onStatusChanged]);
+
+  // ── Signature : sauvegarder comme preuve de livraison (photo LIVRAISON) ──
+  const handleSaveSignature = useCallback(async () => {
+    if (!signatureBase64) return;
+    setSavingSignature(true);
+    try {
+      // 1. Upload la signature (base64) sur Cloudinary
+      const { url, filename } = await uploadBase64ToCloudinary(signatureBase64, 'signature_client');
+      // 2. Sauvegarder l'URL comme photo de preuve de livraison (pas un rapport)
+      await commandesService.saveSignatureAsProof(commande.id, url, filename);
+      setShowSignatureModal(false);
+      Alert.alert('Signature enregistrée', 'La signature de livraison a été sauvegardée.');
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Impossible de sauvegarder la signature.');
+    } finally {
+      setSavingSignature(false);
+    }
+  }, [signatureBase64, commande.id]);
 
   // ── Toggle formulaire rapport ──
   const toggleRapport = useCallback((type: 'ENLEVEMENT' | 'LIVRAISON') => {
@@ -865,18 +1035,21 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   // ── Création rapport ──
   const handleCreateRapport = useCallback(async () => {
     if (!activeRapportType) return;
-    if (!rapportMessage.trim()) {
-      Alert.alert('Commentaire requis', 'Veuillez saisir un commentaire pour le rapport');
+    const photos = rapportPhotos[activeRapportType];
+    const message = rapportMessage.trim();
+    if (photos.length === 0 && !message) {
+      Alert.alert('Rapport incomplet', 'Ajoutez au moins une photo ou un commentaire pour créer le rapport');
       return;
     }
     setLoadingRapport(true);
     try {
       // Pour un chauffeur, user.id EST l'ID de l'entité Chauffeur (même table)
       const chauffeurId = user?.id || commande.chauffeurs?.[0]?.id;
-      const photos = rapportPhotos[activeRapportType];
+      // La réserve s'active UNIQUEMENT s'il y a un commentaire
+      const hasReserve = message.length > 0;
       const res = await commandesService.createRapport(commande.id, {
         type: activeRapportType,
-        message: rapportMessage.trim(),
+        message: message || '',
         chauffeurId,
         photos: photos.length > 0 ? photos : undefined,
       });
@@ -884,7 +1057,12 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         setActiveRapportType(null);
         setRapportMessage('');
         setRapportPhotos({ ENLEVEMENT: [], LIVRAISON: [] });
-        Alert.alert('Rapport créé', 'Le rapport a été créé et la réserve My Truck activée.');
+        Alert.alert(
+          'Rapport créé',
+          hasReserve
+            ? 'Le rapport a été créé et la réserve My Truck activée.'
+            : 'Le rapport a été créé sans activation de réserve.'
+        );
         onStatusChanged?.();
       } else {
         Alert.alert('Erreur', res.error || 'Impossible de créer le rapport');
@@ -983,6 +1161,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   }, [commande.id, onStatusChanged]);
 
   return (
+    <>
     <ScrollView style={styles.tabContent} keyboardShouldPersistTaps="handled">
 
       {/* ── Section Contact & Navigation (contextuelle selon statut) ── */}
@@ -1281,10 +1460,10 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                       style={[
                         styles.rapportSubmitButton,
                         { backgroundColor: '#D97706' },
-                        (!rapportMessage.trim() || loadingRapport) && styles.actionButtonDisabled,
+                        ((rapportPhotos.ENLEVEMENT.length === 0 && !rapportMessage.trim()) || loadingRapport) && styles.actionButtonDisabled,
                       ]}
                       onPress={handleCreateRapport}
-                      disabled={!rapportMessage.trim() || loadingRapport}
+                      disabled={(rapportPhotos.ENLEVEMENT.length === 0 && !rapportMessage.trim()) || loadingRapport}
                     >
                       {loadingRapport ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
@@ -1367,10 +1546,10 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                       style={[
                         styles.rapportSubmitButton,
                         { backgroundColor: '#DC2626' },
-                        (!rapportMessage.trim() || loadingRapport) && styles.actionButtonDisabled,
+                        ((rapportPhotos.LIVRAISON.length === 0 && !rapportMessage.trim()) || loadingRapport) && styles.actionButtonDisabled,
                       ]}
                       onPress={handleCreateRapport}
-                      disabled={!rapportMessage.trim() || loadingRapport}
+                      disabled={(rapportPhotos.LIVRAISON.length === 0 && !rapportMessage.trim()) || loadingRapport}
                     >
                       {loadingRapport ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
@@ -1450,6 +1629,64 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
       )}
 
     </ScrollView>
+
+    {/* ── Modal Signature Client après livraison ── */}
+    <Modal
+      visible={showSignatureModal}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={() => setShowSignatureModal(false)}
+    >
+      <View style={styles.signatureModalContainer}>
+        <View style={styles.signatureModalHeader}>
+          <Text style={styles.signatureModalTitle}>Signature de livraison</Text>
+          <Text style={styles.signatureModalSubtitle}>
+            Faites signer le client ou le magasin pour confirmer la réception
+          </Text>
+        </View>
+
+        <View style={styles.signatureCanvasWrapper}>
+          <SignatureCanvas
+            ref={signatureRef}
+            onOK={(sig) => setSignatureBase64(sig)}
+            onEmpty={() => setSignatureBase64(null)}
+            autoClear={false}
+            descriptionText=""
+            clearText="Effacer"
+            confirmText="Valider"
+            webStyle={`.m-signature-pad { box-shadow: none; border: 1px solid #E5E7EB; border-radius: 8px; }
+              .m-signature-pad--body { border: none; }
+              .m-signature-pad--footer { background: #F9FAFB; border-top: 1px solid #E5E7EB; }
+              body { background: #F9FAFB; }`}
+            style={{ flex: 1 }}
+          />
+        </View>
+
+        <View style={styles.signatureModalFooter}>
+          <TouchableOpacity
+            style={[styles.signatureSaveButton, (!signatureBase64 || savingSignature) && styles.signatureSaveButtonDisabled]}
+            onPress={handleSaveSignature}
+            disabled={!signatureBase64 || savingSignature}
+            activeOpacity={0.8}
+          >
+            {savingSignature
+              ? <ActivityIndicator color="#FFFFFF" size="small" />
+              : <Text style={styles.signatureSaveButtonText}>Enregistrer la signature</Text>
+            }
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.signatureSkipButton}
+            onPress={() => setShowSignatureModal(false)}
+            disabled={savingSignature}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.signatureSkipButtonText}>Ignorer</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 };
 
@@ -2134,5 +2371,73 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
+  },
+
+  // ── Signature Modal ──
+  signatureModalContainer: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  signatureModalHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  signatureModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  signatureModalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  signatureCanvasWrapper: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    margin: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  signatureModalFooter: {
+    padding: 16,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  signatureSaveButton: {
+    backgroundColor: '#10B981',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  signatureSaveButtonDisabled: {
+    backgroundColor: '#9CA3AF',
+  },
+  signatureSaveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  signatureSkipButton: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#FFFFFF',
+  },
+  signatureSkipButtonText: {
+    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '500',
   },
 });
