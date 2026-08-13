@@ -775,10 +775,18 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     return initial;
   });
 
-  // ── Signature après livraison ──
-  const [showSignatureModal, setShowSignatureModal] = useState(false);
-  const [savingSignature, setSavingSignature] = useState(false);
-  const signatureRef = React.useRef<any>(null);
+  // ── Modal photos obligatoires avant ENLEVEE ──
+  const [showEnleveeModal, setShowEnleveeModal] = useState(false);
+  const [enleveeModalPhotos, setEnleveeModalPhotos] = useState<Array<{ url: string }>>([]);
+  const [loadingEnleveeModalPhoto, setLoadingEnleveeModalPhoto] = useState(false);
+  const [confirmingEnlevee, setConfirmingEnlevee] = useState(false);
+
+  // ── Modal preuves + signature obligatoires avant LIVREE ──
+  const [showLivreeModal, setShowLivreeModal] = useState(false);
+  const [livreeModalPhotos, setLivreeModalPhotos] = useState<Array<{ url: string }>>([]);
+  const [loadingLivreeModalPhoto, setLoadingLivreeModalPhoto] = useState(false);
+  const [confirmingLivree, setConfirmingLivree] = useState(false);
+  const livreeSignatureRef = React.useRef<any>(null);
 
   // ── Rapport (un seul formulaire actif à la fois) ──
   const [activeRapportType, setActiveRapportType] = useState<'ENLEVEMENT' | 'LIVRAISON' | null>(null);
@@ -890,8 +898,24 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   const handleAction = useCallback(async () => {
     if (!nextAction || loadingAction) return;
     const targetStatus = nextAction.nextStatus;
-    const commandeId   = commande.id;
-    const label        = nextAction.label;
+
+    // ENLEVEE : ouvrir modal photos obligatoires avant changement de statut
+    if (targetStatus === 'ENLEVEE') {
+      setEnleveeModalPhotos([]);
+      setShowEnleveeModal(true);
+      return;
+    }
+
+    // LIVREE : ouvrir modal preuves + signature obligatoires
+    if (targetStatus === 'LIVREE') {
+      setLivreeModalPhotos([]);
+      setShowLivreeModal(true);
+      return;
+    }
+
+    // Autres transitions : confirmation simple
+    const commandeId = commande.id;
+    const label = nextAction.label;
 
     Alert.alert('Confirmation', label + ' ?', [
       { text: 'Annuler', style: 'cancel' },
@@ -906,21 +930,12 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               setStatusTimestamps(prev => ({ ...prev, [targetStatus]: new Date() }));
               setLoadingAction(false);
               onStatusChanged?.();
-
-              // GPS : démarrer quand livraison commence, arrêter quand terminée
               if (targetStatus === 'EN COURS DE LIVRAISON') {
                 startTracking();
-              } else if (targetStatus === 'LIVREE') {
-                gpsTrackingService.stop().then(() => setTrackingStatus('idle'));
-                // Afficher le modal de signature après confirmation de livraison
-                setShowSignatureModal(true);
               }
             } else {
               setLoadingAction(false);
-              Alert.alert(
-                'Erreur mise à jour',
-                res.error || 'Impossible de mettre à jour le statut.\nVérifiez votre connexion.'
-              );
+              Alert.alert('Erreur mise à jour', res.error || 'Impossible de mettre à jour le statut.\nVérifiez votre connexion.');
             }
           } catch (e: any) {
             setLoadingAction(false);
@@ -929,7 +944,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         },
       },
     ]);
-  }, [nextAction, loadingAction, commande.id, onStatusChanged]);
+  }, [nextAction, loadingAction, commande.id, onStatusChanged, startTracking]);
 
   // ── Échec de livraison ──
   const handleEchecLivraison = useCallback(async () => {
@@ -962,32 +977,122 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     ]);
   }, [commande.id, onStatusChanged]);
 
-  // ── Signature : déclencher la lecture du canvas → onOK gère l'upload ──
-  const handleSaveSignature = useCallback(() => {
-    if (savingSignature) return;
-    setSavingSignature(true);
-    // readSignature() déclenche onOK avec les données base64, ou onEmpty si vide
-    signatureRef.current?.readSignature();
-  }, [savingSignature]);
-
-  // ── Signature : callback onOK — reçoit le base64 et sauvegarde ──
-  const handleSignatureOK = useCallback(async (sig: string) => {
+  // ── Modal ENLEVEE : photo (upload immédiat, suivi local) ──
+  const handleEnleveeModalPhoto = useCallback(async (source: 'camera' | 'gallery') => {
+    let result: ImagePicker.ImagePickerResult;
+    if (source === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Permission requise', "Veuillez autoriser l'accès à la caméra"); return; }
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+    } else {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Permission requise', "Veuillez autoriser l'accès à la galerie photo"); return; }
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    }
+    if (result.canceled || !result.assets?.[0]) return;
+    setLoadingEnleveeModalPhoto(true);
     try {
-      const { url } = await uploadBase64ToCloudinary(sig, 'signature_client');
-      await commandesService.saveSignatureLivraison(commande.id, url);
-      setShowSignatureModal(false);
-      Alert.alert('Signature enregistrée', 'La signature de livraison a été sauvegardée.');
+      const res = await commandesService.uploadPhoto(commande.id, result.assets[0].uri, 'ENLEVEMENT');
+      if (res.success) {
+        setEnleveeModalPhotos(prev => [...prev, { url: result.assets[0].uri }]);
+      } else {
+        Alert.alert('Erreur upload', res.error || "Impossible d'uploader la photo");
+      }
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message || 'Impossible de sauvegarder la signature.');
+      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
     } finally {
-      setSavingSignature(false);
+      setLoadingEnleveeModalPhoto(false);
     }
   }, [commande.id]);
 
-  // ── Signature : canvas vide quand l'utilisateur n'a pas signé ──
-  const handleSignatureEmpty = useCallback(() => {
-    setSavingSignature(false);
-    Alert.alert('Signature manquante', 'Veuillez signer avant d\'enregistrer.');
+  // ── Modal ENLEVEE : confirmer (≥1 photo requise) ──
+  const handleConfirmEnlevee = useCallback(async () => {
+    if (enleveeModalPhotos.length === 0 || confirmingEnlevee) return;
+    setConfirmingEnlevee(true);
+    try {
+      const res = await commandesService.updateStatutLivraison(commande.id, 'ENLEVEE');
+      if (res.success) {
+        setLocalStatut('ENLEVEE');
+        setStatusTimestamps(prev => ({ ...prev, 'ENLEVEE': new Date() }));
+        setShowEnleveeModal(false);
+        setEnleveeModalPhotos([]);
+        onStatusChanged?.();
+      } else {
+        Alert.alert('Erreur', res.error || 'Impossible de mettre à jour le statut');
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+    } finally {
+      setConfirmingEnlevee(false);
+    }
+  }, [enleveeModalPhotos, confirmingEnlevee, commande.id, onStatusChanged]);
+
+  // ── Modal LIVREE : photo preuve (upload immédiat, type PREUVE_LIVRAISON) ──
+  const handleLivreeModalPhoto = useCallback(async (source: 'camera' | 'gallery') => {
+    let result: ImagePicker.ImagePickerResult;
+    if (source === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Permission requise', "Veuillez autoriser l'accès à la caméra"); return; }
+      result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+    } else {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Permission requise', "Veuillez autoriser l'accès à la galerie photo"); return; }
+      result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    }
+    if (result.canceled || !result.assets?.[0]) return;
+    setLoadingLivreeModalPhoto(true);
+    try {
+      const res = await commandesService.uploadPhoto(commande.id, result.assets[0].uri, 'PREUVE_LIVRAISON');
+      if (res.success) {
+        setLivreeModalPhotos(prev => [...prev, { url: result.assets[0].uri }]);
+      } else {
+        Alert.alert('Erreur upload', res.error || "Impossible d'uploader la photo");
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+    } finally {
+      setLoadingLivreeModalPhoto(false);
+    }
+  }, [commande.id]);
+
+  // ── Modal LIVREE : déclencher lecture signature → onOK finalise tout ──
+  const handleConfirmLivree = useCallback(() => {
+    if (livreeModalPhotos.length === 0) {
+      Alert.alert('Photo requise', 'Prenez au moins une photo de preuve avant de confirmer la livraison.');
+      return;
+    }
+    if (confirmingLivree) return;
+    setConfirmingLivree(true);
+    livreeSignatureRef.current?.readSignature();
+  }, [livreeModalPhotos, confirmingLivree]);
+
+  // ── Modal LIVREE : signature reçue → upload + saveSignature + updateStatut ──
+  const handleLivreeSignatureOK = useCallback(async (sig: string) => {
+    try {
+      const { url } = await uploadBase64ToCloudinary(sig, 'signature_client');
+      await commandesService.saveSignatureLivraison(commande.id, url);
+      const res = await commandesService.updateStatutLivraison(commande.id, 'LIVREE');
+      if (res.success) {
+        setLocalStatut('LIVREE');
+        setStatusTimestamps(prev => ({ ...prev, 'LIVREE': new Date() }));
+        gpsTrackingService.stop().then(() => setTrackingStatus('idle'));
+        setShowLivreeModal(false);
+        setLivreeModalPhotos([]);
+        onStatusChanged?.();
+      } else {
+        Alert.alert('Erreur', res.error || 'Impossible de confirmer la livraison');
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Impossible de finaliser la livraison');
+    } finally {
+      setConfirmingLivree(false);
+    }
+  }, [commande.id, onStatusChanged]);
+
+  // ── Modal LIVREE : canvas vide ──
+  const handleLivreeSignatureEmpty = useCallback(() => {
+    setConfirmingLivree(false);
+    Alert.alert('Signature manquante', 'Faites signer le client ou le magasin avant de confirmer.');
   }, []);
 
   // ── Toggle formulaire rapport ──
@@ -1053,8 +1158,8 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     try {
       // Pour un chauffeur, user.id EST l'ID de l'entité Chauffeur (même table)
       const chauffeurId = user?.id || commande.chauffeurs?.[0]?.id;
-      // La réserve s'active UNIQUEMENT s'il y a un commentaire
-      const hasReserve = message.length > 0;
+      // La réserve s'active si photo OU commentaire présent
+      const hasReserve = photos.length > 0 || message.length > 0;
       const res = await commandesService.createRapport(commande.id, {
         type: activeRapportType,
         message: message || '',
@@ -1392,12 +1497,52 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         </View>
       )}
 
+      {/* ── Section Photos d'enlèvement (ajout supplémentaire, visible dès ENLEVEE) ── */}
+      {localStatut === 'ENLEVEE' && (
+        <View style={styles.enleveePhotoSection}>
+          <Text style={styles.enleveePhotoTitle}>📷 Photos d'enlèvement</Text>
+          <Text style={styles.enleveePhotoNote}>
+            Ajoutez d'autres photos si nécessaire.
+          </Text>
+          <View style={styles.photoButtonRow}>
+            <TouchableOpacity
+              style={styles.photoButton}
+              onPress={() => handleTakePhoto('ENLEVEMENT')}
+              disabled={loadingPhoto}
+            >
+              <Ionicons name="camera" size={16} color="#6B7280" />
+              <Text style={styles.photoButtonText}>Caméra</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.photoButton}
+              onPress={() => handlePickPhoto('ENLEVEMENT')}
+              disabled={loadingPhoto}
+            >
+              <Ionicons name="images" size={16} color="#6B7280" />
+              <Text style={styles.photoButtonText}>Galerie</Text>
+            </TouchableOpacity>
+          </View>
+          {loadingPhoto && (
+            <ActivityIndicator size="small" color="#D97706" style={{ marginTop: 6 }} />
+          )}
+          {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').length > 0 && (
+            <View style={styles.preuvePhotoGrid}>
+              {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').map((photo, idx) => (
+                <TouchableOpacity key={photo.id || idx} onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                  <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* ── Section Rapports & Réserves (facultatif) ── */}
       {(canRapportEnlev || canRapportLiv) && (
         <View style={styles.rapportSection}>
           <Text style={styles.rapportSectionTitle}>Rapports & Réserves (facultatif)</Text>
           <Text style={styles.rapportSectionNote}>
-            Créer un rapport signale un problème et active la réserve My Truck, sauf pour prise de photos sans message.
+            Créer un rapport signale un problème et active la réserve My Truck (photo et/ou commentaire).
           </Text>
 
           {/* Rapport d'enlèvement */}
@@ -1421,7 +1566,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
 
               {activeRapportType === 'ENLEVEMENT' && (
                 <View style={styles.rapportForm}>
-                  <Text style={styles.rapportFormLabel}>Commentaire *</Text>
+                  <Text style={styles.rapportFormLabel}>Commentaire (optionnel)</Text>
                   <TextInput
                     style={styles.rapportTextInput}
                     value={rapportMessage}
@@ -1507,7 +1652,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
 
               {activeRapportType === 'LIVRAISON' && (
                 <View style={[styles.rapportForm, styles.rapportFormLiv]}>
-                  <Text style={styles.rapportFormLabel}>Commentaire *</Text>
+                  <Text style={styles.rapportFormLabel}>Commentaire (optionnel)</Text>
                   <TextInput
                     style={styles.rapportTextInput}
                     value={rapportMessage}
@@ -1658,61 +1803,203 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
 
     </ScrollView>
 
-    {/* ── Modal Signature Client après livraison ── */}
+    {/* ── Modal Photos obligatoires avant ENLEVEE ── */}
     <Modal
-      visible={showSignatureModal}
+      visible={showEnleveeModal}
       animationType="slide"
       transparent={false}
-      onRequestClose={() => setShowSignatureModal(false)}
+      onRequestClose={() => !confirmingEnlevee && setShowEnleveeModal(false)}
     >
       <View style={styles.signatureModalContainer}>
         <View style={styles.signatureModalHeader}>
-          <Text style={styles.signatureModalTitle}>Signature de livraison</Text>
+          <Text style={styles.signatureModalTitle}>📷 Photos d'enlèvement</Text>
           <Text style={styles.signatureModalSubtitle}>
-            Faites signer le client ou le magasin pour confirmer la réception
+            Prenez au moins une photo avant de confirmer l'enlèvement
           </Text>
         </View>
 
-        <View style={styles.signatureCanvasWrapper}>
-          <SignatureCanvas
-            ref={signatureRef}
-            onOK={handleSignatureOK}
-            onEmpty={handleSignatureEmpty}
-            autoClear={false}
-            descriptionText=""
-            webStyle={`.m-signature-pad { box-shadow: none; border: none; }
-              .m-signature-pad--body { border: none; }
-              .m-signature-pad--footer { display: none; }
-              body { background: #FFFFFF; }`}
-            style={{ flex: 1 }}
-          />
-        </View>
+        <ScrollView style={{ flex: 1, padding: 16 }}>
+          {/* Boutons caméra / galerie */}
+          <View style={styles.photoButtonRow}>
+            <TouchableOpacity
+              style={[styles.photoButton, { flex: 1 }]}
+              onPress={() => handleEnleveeModalPhoto('camera')}
+              disabled={loadingEnleveeModalPhoto || confirmingEnlevee}
+            >
+              <Ionicons name="camera" size={20} color="#6B7280" />
+              <Text style={styles.photoButtonText}>Caméra</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.photoButton, { flex: 1 }]}
+              onPress={() => handleEnleveeModalPhoto('gallery')}
+              disabled={loadingEnleveeModalPhoto || confirmingEnlevee}
+            >
+              <Ionicons name="images" size={20} color="#6B7280" />
+              <Text style={styles.photoButtonText}>Galerie</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loadingEnleveeModalPhoto && (
+            <View style={{ alignItems: 'center', marginTop: 12 }}>
+              <ActivityIndicator size="small" color="#8B5CF6" />
+              <Text style={styles.preuveSectionNote}>Upload en cours...</Text>
+            </View>
+          )}
+
+          {/* Miniatures photos prises */}
+          {enleveeModalPhotos.length > 0 && (
+            <View style={{ marginTop: 16 }}>
+              <Text style={[styles.photoSectionTitle, { color: '#059669' }]}>
+                ✅ {enleveeModalPhotos.length} photo(s) ajoutée(s)
+              </Text>
+              <View style={styles.preuvePhotoGrid}>
+                {enleveeModalPhotos.map((p, idx) => (
+                  <Image key={idx} source={{ uri: p.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {enleveeModalPhotos.length === 0 && !loadingEnleveeModalPhoto && (
+            <View style={{ alignItems: 'center', marginTop: 32 }}>
+              <Ionicons name="camera-outline" size={48} color="#D1D5DB" />
+              <Text style={[styles.noData, { marginTop: 8 }]}>Aucune photo prise</Text>
+            </View>
+          )}
+        </ScrollView>
 
         <View style={styles.signatureModalFooter}>
           <TouchableOpacity
-            style={[styles.signatureSaveButton, savingSignature && styles.signatureSaveButtonDisabled]}
-            onPress={handleSaveSignature}
-            disabled={savingSignature}
+            style={[
+              styles.signatureSaveButton,
+              { backgroundColor: '#8B5CF6' },
+              (enleveeModalPhotos.length === 0 || confirmingEnlevee) && styles.signatureSaveButtonDisabled,
+            ]}
+            onPress={handleConfirmEnlevee}
+            disabled={enleveeModalPhotos.length === 0 || confirmingEnlevee}
             activeOpacity={0.8}
           >
-            {savingSignature
+            {confirmingEnlevee
               ? <ActivityIndicator color="#FFFFFF" size="small" />
-              : <Text style={styles.signatureSaveButtonText}>Enregistrer la signature</Text>
+              : <Text style={styles.signatureSaveButtonText}>Confirmer l'enlèvement</Text>
             }
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.signatureSkipButton}
-            onPress={() => setShowSignatureModal(false)}
-            disabled={savingSignature}
+            onPress={() => setShowEnleveeModal(false)}
+            disabled={confirmingEnlevee}
             activeOpacity={0.7}
           >
-            <Text style={styles.signatureSkipButtonText}>Ignorer</Text>
+            <Text style={styles.signatureSkipButtonText}>Annuler</Text>
           </TouchableOpacity>
         </View>
       </View>
     </Modal>
-    </>
+
+    {/* ── Modal Preuves + Signature obligatoires avant LIVREE ── */}
+    <Modal
+      visible={showLivreeModal}
+      animationType="slide"
+      transparent={false}
+      onRequestClose={() => !confirmingLivree && setShowLivreeModal(false)}
+    >
+      <View style={styles.signatureModalContainer}>
+        <View style={styles.signatureModalHeader}>
+          <Text style={styles.signatureModalTitle}>✅ Finaliser la livraison</Text>
+          <Text style={styles.signatureModalSubtitle}>
+            Photo(s) obligatoire(s) + signature du client ou magasin
+          </Text>
+        </View>
+
+        <ScrollView style={{ flex: 1 }}>
+          {/* Section photos de preuve */}
+          <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
+            <Text style={styles.photoSectionTitle}>
+              📸 Photos de preuve {livreeModalPhotos.length === 0 ? '(obligatoire)' : `— ${livreeModalPhotos.length} ajoutée(s) ✅`}
+            </Text>
+            <View style={styles.photoButtonRow}>
+              <TouchableOpacity
+                style={[styles.photoButton, { flex: 1 }]}
+                onPress={() => handleLivreeModalPhoto('camera')}
+                disabled={loadingLivreeModalPhoto || confirmingLivree}
+              >
+                <Ionicons name="camera" size={18} color="#6B7280" />
+                <Text style={styles.photoButtonText}>Caméra</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.photoButton, { flex: 1 }]}
+                onPress={() => handleLivreeModalPhoto('gallery')}
+                disabled={loadingLivreeModalPhoto || confirmingLivree}
+              >
+                <Ionicons name="images" size={18} color="#6B7280" />
+                <Text style={styles.photoButtonText}>Galerie</Text>
+              </TouchableOpacity>
+            </View>
+            {loadingLivreeModalPhoto && (
+              <ActivityIndicator size="small" color="#10B981" style={{ marginTop: 6 }} />
+            )}
+            {livreeModalPhotos.length > 0 && (
+              <View style={styles.preuvePhotoGrid}>
+                {livreeModalPhotos.map((p, idx) => (
+                  <Image key={idx} source={{ uri: p.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* Section signature */}
+          <View style={{ padding: 16 }}>
+            <Text style={styles.photoSectionTitle}>✍️ Signature (obligatoire)</Text>
+            <Text style={[styles.preuveSectionNote, { marginBottom: 8 }]}>
+              Faites signer le client ou le magasin destinataire
+            </Text>
+          </View>
+          <View style={styles.signatureCanvasWrapper}>
+            <SignatureCanvas
+              ref={livreeSignatureRef}
+              onOK={handleLivreeSignatureOK}
+              onEmpty={handleLivreeSignatureEmpty}
+              autoClear={false}
+              descriptionText=""
+              webStyle={`.m-signature-pad { box-shadow: none; border: none; }
+                .m-signature-pad--body { border: none; }
+                .m-signature-pad--footer { display: none; }
+                body { background: #FFFFFF; }`}
+              style={{ flex: 1 }}
+            />
+          </View>
+        </ScrollView>
+
+        <View style={styles.signatureModalFooter}>
+          <TouchableOpacity
+            style={[
+              styles.signatureSaveButton,
+              { backgroundColor: '#10B981' },
+              (livreeModalPhotos.length === 0 || confirmingLivree) && styles.signatureSaveButtonDisabled,
+            ]}
+            onPress={handleConfirmLivree}
+            disabled={livreeModalPhotos.length === 0 || confirmingLivree}
+            activeOpacity={0.8}
+          >
+            {confirmingLivree
+              ? <ActivityIndicator color="#FFFFFF" size="small" />
+              : <Text style={styles.signatureSaveButtonText}>Confirmer la livraison</Text>
+            }
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.signatureSkipButton}
+            onPress={() => setShowLivreeModal(false)}
+            disabled={confirmingLivree}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.signatureSkipButtonText}>Annuler</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+</>
   );
 };
 
@@ -2146,6 +2433,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#059669',
+  },
+
+  // ── Photos d'enlèvement supplémentaires (après ENLEVEE) ──
+  enleveePhotoSection: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  enleveePhotoTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+    marginBottom: 4,
+  },
+  enleveePhotoNote: {
+    fontSize: 12,
+    color: '#B45309',
+    marginBottom: 10,
   },
 
   // ── Rapports & Réserves ──

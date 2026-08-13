@@ -165,7 +165,7 @@ export const commandesService = {
       // Étape 2 : Envoyer l'URL JSON au backend (endpoint attendu : { photos: [{url, filename}] })
       const response = await apiService.post(
         COMMANDES_ENDPOINTS.ADD_PHOTO(commandeId),
-        { photos: [{ url, filename }] }
+        { photos: [{ url, filename, type }] }
       );
 
       if (response.success) {

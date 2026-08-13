@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "378101531000",
+    "project_id": "my-truck-transport",
+    "storage_bucket": "my-truck-transport.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:378101531000:android:149938b38780b8e41f488d",
+        "android_client_info": {
+          "package_name": "com.mytruck.chauffeur"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAf0h-E2al-Mt1cGKi6L-B03Hm8dd96lu8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
