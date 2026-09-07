@@ -627,9 +627,40 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
     );
   }
 
+  const enlevementProofs = (commande.photos || []).filter(p => p.type === 'ENLEVEMENT');
+
   return (
     <>
       <ScrollView style={styles.tabContent}>
+
+        {/* ── Preuves d'enlèvement (photos type ENLEVEMENT) ── */}
+        {enlevementProofs.length > 0 && (
+          <View style={{ margin: 12, backgroundColor: '#FAF5FF', borderRadius: 12, borderWidth: 1, borderColor: '#E9D5FF', padding: 12 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: '#6B21A8', marginBottom: 8 }}>
+              📷 Preuves d'enlèvement ({enlevementProofs.length})
+            </Text>
+            <View style={styles.preuvePhotoGrid}>
+              {enlevementProofs.map((photo, idx) => (
+                <View key={photo.id || idx} style={styles.photoWithDelete}>
+                  <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                    <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deletePhotoButton}
+                    onPress={() => handleDeletePhoto(photo)}
+                    disabled={deletingPhotoUrl === photo.url}
+                  >
+                    {deletingPhotoUrl === photo.url
+                      ? <ActivityIndicator size="small" color="#FFFFFF" />
+                      : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                    }
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {rapports?.enlevement?.map((rapport: any, idx: number) => (
           <React.Fragment key={rapport.id || `enlev-${idx}`}>
             {renderRapportBlock(rapport, 'ENLEVEMENT')}
@@ -1497,8 +1528,8 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         </View>
       )}
 
-      {/* ── Section Photos d'enlèvement (ajout supplémentaire, visible dès ENLEVEE) ── */}
-      {localStatut === 'ENLEVEE' && (
+      {/* ── Section Photos d'enlèvement (ajout supplémentaire, visible dès ENLEVEE et après) ── */}
+      {['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(localStatut) && (
         <View style={styles.enleveePhotoSection}>
           <Text style={styles.enleveePhotoTitle}>📷 Photos d'enlèvement</Text>
           <Text style={styles.enleveePhotoNote}>
@@ -1528,9 +1559,21 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
           {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').length > 0 && (
             <View style={styles.preuvePhotoGrid}>
               {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').map((photo, idx) => (
-                <TouchableOpacity key={photo.id || idx} onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
-                  <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
-                </TouchableOpacity>
+                <View key={photo.id || idx} style={styles.photoWithDelete}>
+                  <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                    <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deletePhotoButton}
+                    onPress={() => handleDeleteProofPhoto(photo.url)}
+                    disabled={deletingProofPhotoUrl === photo.url}
+                  >
+                    {deletingProofPhotoUrl === photo.url
+                      ? <ActivityIndicator size="small" color="#FFFFFF" />
+                      : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                    }
+                  </TouchableOpacity>
+                </View>
               ))}
             </View>
           )}
@@ -1854,7 +1897,18 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
               </Text>
               <View style={styles.preuvePhotoGrid}>
                 {enleveeModalPhotos.map((p, idx) => (
-                  <Image key={idx} source={{ uri: p.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                  <View key={idx} style={styles.photoWithDelete}>
+                    <TouchableOpacity onPress={() => setViewerUrl(p.url)} activeOpacity={0.85}>
+                      <Image source={{ uri: p.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deletePhotoButton}
+                      onPress={() => setEnleveeModalPhotos(prev => prev.filter((_, i) => i !== idx))}
+                      disabled={confirmingEnlevee}
+                    >
+                      <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
                 ))}
               </View>
             </View>
@@ -1912,8 +1966,8 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
           </Text>
         </View>
 
-        <ScrollView style={{ flex: 1 }}>
-          {/* Section photos de preuve */}
+        {/* Section photos de preuve — dans un ScrollView limité */}
+        <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled">
           <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
             <Text style={styles.photoSectionTitle}>
               📸 Photos de preuve {livreeModalPhotos.length === 0 ? '(obligatoire)' : `— ${livreeModalPhotos.length} ajoutée(s) ✅`}
@@ -1942,34 +1996,44 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
             {livreeModalPhotos.length > 0 && (
               <View style={styles.preuvePhotoGrid}>
                 {livreeModalPhotos.map((p, idx) => (
-                  <Image key={idx} source={{ uri: p.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                  <View key={idx} style={styles.photoWithDelete}>
+                    <TouchableOpacity onPress={() => setViewerUrl(p.url)} activeOpacity={0.85}>
+                      <Image source={{ uri: p.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.deletePhotoButton}
+                      onPress={() => setLivreeModalPhotos(prev => prev.filter((_, i) => i !== idx))}
+                      disabled={confirmingLivree}
+                    >
+                      <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                    </TouchableOpacity>
+                  </View>
                 ))}
               </View>
             )}
           </View>
-
-          {/* Section signature */}
-          <View style={{ padding: 16 }}>
-            <Text style={styles.photoSectionTitle}>✍️ Signature (obligatoire)</Text>
-            <Text style={[styles.preuveSectionNote, { marginBottom: 8 }]}>
-              Faites signer le client ou le magasin destinataire
-            </Text>
-          </View>
-          <View style={styles.signatureCanvasWrapper}>
-            <SignatureCanvas
-              ref={livreeSignatureRef}
-              onOK={handleLivreeSignatureOK}
-              onEmpty={handleLivreeSignatureEmpty}
-              autoClear={false}
-              descriptionText=""
-              webStyle={`.m-signature-pad { box-shadow: none; border: none; }
-                .m-signature-pad--body { border: none; }
-                .m-signature-pad--footer { display: none; }
-                body { background: #FFFFFF; }`}
-              style={{ flex: 1 }}
-            />
-          </View>
         </ScrollView>
+
+        {/* Section signature — HORS du ScrollView pour éviter les conflits tactiles */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E7EB' }}>
+          <Text style={styles.photoSectionTitle}>✍️ Signature (obligatoire)</Text>
+          <Text style={[styles.preuveSectionNote, { marginBottom: 4 }]}>
+            Faites signer le client ou le magasin destinataire
+          </Text>
+        </View>
+        <View style={[styles.signatureCanvasWrapper, { height: 200, flex: 0 }]}>
+          <SignatureCanvas
+            ref={livreeSignatureRef}
+            onOK={handleLivreeSignatureOK}
+            onEmpty={handleLivreeSignatureEmpty}
+            autoClear={false}
+            descriptionText=""
+            webStyle={`.m-signature-pad { box-shadow: none; border: none; }
+              .m-signature-pad--body { border: none; }
+              .m-signature-pad--footer { display: none; }
+              body { background: #FFFFFF; }`}
+            style={{ flex: 1 }}
+          /></View>
 
         <View style={styles.signatureModalFooter}>
           <TouchableOpacity
@@ -2437,22 +2501,22 @@ const styles = StyleSheet.create({
 
   // ── Photos d'enlèvement supplémentaires (après ENLEVEE) ──
   enleveePhotoSection: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: '#FAF5FF',
     borderRadius: 10,
     padding: 14,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: '#E9D5FF',
   },
   enleveePhotoTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#92400E',
+    color: '#6B21A8',
     marginBottom: 4,
   },
   enleveePhotoNote: {
     fontSize: 12,
-    color: '#B45309',
+    color: '#7E22CE',
     marginBottom: 10,
   },
 
