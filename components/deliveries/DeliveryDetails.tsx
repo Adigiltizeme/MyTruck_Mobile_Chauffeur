@@ -627,39 +627,9 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
     );
   }
 
-  const enlevementProofs = (commande.photos || []).filter(p => p.type === 'ENLEVEMENT');
-
   return (
     <>
       <ScrollView style={styles.tabContent}>
-
-        {/* ── Preuves d'enlèvement (photos type ENLEVEMENT) ── */}
-        {enlevementProofs.length > 0 && (
-          <View style={{ margin: 12, backgroundColor: '#FAF5FF', borderRadius: 12, borderWidth: 1, borderColor: '#E9D5FF', padding: 12 }}>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#6B21A8', marginBottom: 8 }}>
-              📷 Preuves d'enlèvement ({enlevementProofs.length})
-            </Text>
-            <View style={styles.preuvePhotoGrid}>
-              {enlevementProofs.map((photo, idx) => (
-                <View key={photo.id || idx} style={styles.photoWithDelete}>
-                  <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
-                    <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deletePhotoButton}
-                    onPress={() => handleDeletePhoto(photo)}
-                    disabled={deletingPhotoUrl === photo.url}
-                  >
-                    {deletingPhotoUrl === photo.url
-                      ? <ActivityIndicator size="small" color="#FFFFFF" />
-                      : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
-                    }
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
 
         {rapports?.enlevement?.map((rapport: any, idx: number) => (
           <React.Fragment key={rapport.id || `enlev-${idx}`}>
@@ -1531,7 +1501,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
       {/* ── Section Photos d'enlèvement (ajout supplémentaire, visible dès ENLEVEE et après) ── */}
       {['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(localStatut) && (
         <View style={styles.enleveePhotoSection}>
-          <Text style={styles.enleveePhotoTitle}>📷 Photos d'enlèvement</Text>
+          <Text style={styles.enleveePhotoTitle}>Preuves d'enlèvement</Text>
           <Text style={styles.enleveePhotoNote}>
             Ajoutez d'autres photos si nécessaire.
           </Text>
@@ -1855,7 +1825,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     >
       <View style={styles.signatureModalContainer}>
         <View style={styles.signatureModalHeader}>
-          <Text style={styles.signatureModalTitle}>📷 Photos d'enlèvement</Text>
+          <Text style={styles.signatureModalTitle}>Preuves d'enlèvement</Text>
           <Text style={styles.signatureModalSubtitle}>
             Prenez au moins une photo avant de confirmer l'enlèvement
           </Text>
