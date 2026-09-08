@@ -1821,7 +1821,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
       visible={showEnleveeModal}
       animationType="slide"
       transparent={false}
-      onRequestClose={() => !confirmingEnlevee && setShowEnleveeModal(false)}
+      onRequestClose={() => { if (!confirmingEnlevee) setShowEnleveeModal(false); }}
     >
       <View style={styles.signatureModalContainer}>
         <View style={styles.signatureModalHeader}>
@@ -1926,7 +1926,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
       visible={showLivreeModal}
       animationType="slide"
       transparent={false}
-      onRequestClose={() => !confirmingLivree && setShowLivreeModal(false)}
+      onRequestClose={() => { if (!confirmingLivree) setShowLivreeModal(false); }}
     >
       <View style={styles.signatureModalContainer}>
         <View style={styles.signatureModalHeader}>
