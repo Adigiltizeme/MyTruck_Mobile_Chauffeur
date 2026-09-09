@@ -37,6 +37,7 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
         "CAMERA",
         "READ_MEDIA_IMAGES",
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -44,6 +45,7 @@
         "android.permission.ACCESS_BACKGROUND_LOCATION",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ]
