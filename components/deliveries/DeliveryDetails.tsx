@@ -1998,11 +1998,12 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
             onEmpty={handleLivreeSignatureEmpty}
             autoClear={false}
             descriptionText=""
-            webStyle={`.m-signature-pad { box-shadow: none; border: none; }
-              .m-signature-pad--body { border: none; }
+            webStyle={`.m-signature-pad { box-shadow: none; border: none; width: 100%; height: 100%; margin: 0; }
+              .m-signature-pad--body { border: none; height: 100%; }
               .m-signature-pad--footer { display: none; }
-              body { background: #FFFFFF; }`}
-            style={{ flex: 1 }}
+              html, body { background: #FFFFFF; margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; }
+              canvas { width: 100% !important; }`}
+            style={{ flex: 1, width: '100%' }}
           /></View>
 
         <View style={styles.signatureModalFooter}>
