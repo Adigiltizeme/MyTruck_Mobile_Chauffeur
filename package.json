@@ -45,6 +45,7 @@
     "@babel/plugin-transform-react-jsx-self": "7.29.7",
     "@babel/plugin-transform-react-jsx-source": "7.29.7",
     "@babel/plugin-transform-regenerator": "7.29.8",
+    "@expo/ngrok": "^4.1.0",
     "@react-native/babel-preset": "0.86.3",
     "@react-native/metro-babel-transformer": "0.86.3",
     "@react-native/metro-config": "0.86.3",

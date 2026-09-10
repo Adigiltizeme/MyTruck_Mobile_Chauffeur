@@ -48,8 +48,22 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
     }
   };
 
+  const getCardBgColor = (statut: string): string => {
+    const colors: Record<string, string> = {
+      'EN ATTENTE':            '#EFF6FF', // blue-50
+      'CONFIRMEE':             '#EEF2FF', // indigo-50
+      'ENLEVEE':              '#FAF5FF', // purple-50
+      'EN COURS DE LIVRAISON': '#FEFCE8', // yellow-50
+      'LIVREE':               '#F0FDF4', // green-50
+      'ANNULEE':              '#FFF1F2', // red-50
+      'ECHEC':                '#FFF1F2', // red-50
+    };
+    return colors[statut] || '#FFFFFF';
+  };
+
   const statutCmdClass = getStatutCommandeStyle(commande.statutCommande);
   const statutLivClass = getStatutLivraisonStyle(commande.statutLivraison);
+  const cardBgColor = getCardBgColor(commande.statutLivraison || 'EN ATTENTE');
 
   const isCession = commande.type === 'INTER_MAGASIN';
 
@@ -61,7 +75,7 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
       : 'N/A';
 
   return (
-    <View style={[styles.card, isExpanded && styles.cardExpanded]}>
+    <View style={[styles.card, isExpanded && styles.cardExpanded, { backgroundColor: cardBgColor }]}>
       {/* En-tête carte */}
       <View style={[styles.cardHeader, isExpanded && styles.cardHeaderExpanded]}>
         <View style={styles.headerLeft}>
@@ -89,6 +103,22 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
             <Text style={styles.gridLabel}>Créneau:</Text>
             <Text style={styles.gridValue}>{commande.livraison?.creneau || 'N/A'}</Text>
           </View>
+
+          {/* Magasin */}
+          {commande.magasin?.nom && (
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>Magasin:</Text>
+              <Text style={styles.gridValueSecondary}>{commande.magasin.nom}</Text>
+            </View>
+          )}
+
+          {/* Véhicule */}
+          {commande.livraison?.vehicule && (
+            <View style={styles.gridItem}>
+              <Text style={styles.gridLabel}>Véhicule:</Text>
+              <Text style={styles.gridValue}>{commande.livraison.vehicule}</Text>
+            </View>
+          )}
 
           {/* Statut commande */}
           <View style={styles.gridItem}>
@@ -207,6 +237,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#111827',
+  },
+  gridValueSecondary: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6B7280',
   },
   badge: {
     paddingHorizontal: 8,
