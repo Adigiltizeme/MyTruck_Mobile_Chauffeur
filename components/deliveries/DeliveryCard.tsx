@@ -93,7 +93,7 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
           {/* Date */}
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Date:</Text>
-            <Text style={styles.gridValue}>
+            <Text style={styles.dateValue}>
               {formatDateValue(commande.dates?.livraison || commande.dateLivraison)}
             </Text>
           </View>
@@ -200,13 +200,13 @@ const styles = StyleSheet.create({
   },
   numeroCommande: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#111827',
+    color: '#6B7280',
     marginBottom: 4,
   },
   clientName: {
     fontSize: 14,
-    color: '#6B7280',
+    fontWeight: '700',
+    color: '#111827',
   },
   cessionLabel: {
     color: '#2563EB', // bleu comme dans le web
@@ -237,6 +237,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#111827',
+  },
+  dateValue: {
+    color: '#EAB10B',
+    fontWeight: '800'
   },
   gridValueSecondary: {
     fontSize: 14,

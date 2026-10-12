@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  ActionSheetIOS,
   TextInput,
   Platform,
   Image,
@@ -104,36 +105,112 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
   );
 };
 
+// ─── Appel / navigation (partagés par les onglets Informations et Actions) ──
+const callPhone = (phone: string) => {
+  const cleaned = phone.replace(/\s/g, '');
+  Linking.openURL(`tel:${cleaned}`).catch(() =>
+    Alert.alert('Erreur', "Impossible de passer l'appel")
+  );
+};
+
+const openMaps = (address: string) => {
+  if (!address) {
+    Alert.alert('Adresse manquante', 'Aucune adresse disponible pour la navigation');
+    return;
+  }
+  const encoded = encodeURIComponent(address);
+  const openWithFallback = (url: string, fallback: string) =>
+    Linking.openURL(url).catch(() =>
+      Linking.openURL(fallback)
+        .catch(() => Alert.alert('Erreur', "Impossible d'ouvrir la navigation"))
+    );
+
+  // Android : geo: déclenche déjà le sélecteur natif d'applications
+  if (Platform.OS !== 'ios') {
+    openWithFallback(`geo:0,0?q=${encoded}`, `https://maps.google.com/?q=${encoded}`);
+    return;
+  }
+
+  // iOS : pas de sélecteur système → proposer les apps de navigation installées
+  // (schémas déclarés dans LSApplicationQueriesSchemes de app.json, requis par canOpenURL)
+  const apps = [
+    { label: 'Plans', url: `maps://?daddr=${encoded}`, fallback: `https://maps.apple.com/?daddr=${encoded}`, always: true },
+    { label: 'Google Maps', url: `comgooglemaps://?daddr=${encoded}&directionsmode=driving`, fallback: `https://www.google.com/maps/dir/?api=1&destination=${encoded}`, always: false },
+    { label: 'Waze', url: `waze://?q=${encoded}&navigate=yes`, fallback: `https://waze.com/ul?q=${encoded}&navigate=yes`, always: false },
+  ];
+
+  Promise.all(apps.map(a => (a.always ? true : Linking.canOpenURL(a.url).catch(() => false))))
+    .then((installed) => {
+      const choices = apps.filter((_, i) => installed[i]);
+      if (choices.length === 1) {
+        openWithFallback(choices[0].url, choices[0].fallback);
+        return;
+      }
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Naviguer avec…',
+          message: address,
+          options: [...choices.map(a => a.label), 'Annuler'],
+          cancelButtonIndex: choices.length,
+        },
+        (index: number) => {
+          const app = choices[index];
+          if (app) openWithFallback(app.url, app.fallback);
+        }
+      );
+    });
+};
+
+const PhoneValue: React.FC<{ phone?: string | null }> = ({ phone }) =>
+  phone ? (
+    <TouchableOpacity style={styles.pressableValue} onPress={() => callPhone(phone)} activeOpacity={0.6}>
+      <Text style={[styles.infoValue, styles.phoneLink]}>{'📞 ' + phone}</Text>
+    </TouchableOpacity>
+  ) : (
+    <Text style={styles.infoValue}>N/A</Text>
+  );
+
+const AddressValue: React.FC<{ label?: string | null; navigateTo?: string }> = ({ label, navigateTo }) =>
+  label ? (
+    <TouchableOpacity style={styles.pressableValue} onPress={() => openMaps(navigateTo || label)} activeOpacity={0.6}>
+      <Text style={[styles.infoValue, styles.addressLink]}>{'📍 ' + label}</Text>
+    </TouchableOpacity>
+  ) : (
+    <Text style={styles.infoValue}>N/A</Text>
+  );
+
 // ─── Bloc magasin réutilisable ─────────────────────────────────────────────
-const MagasinBlock: React.FC<{ titre: string; magasin?: Commande['magasin']; vendeur?: string }> = ({ titre, magasin, vendeur }) => (
-  <View style={styles.section}>
-    <Text style={styles.sectionTitle}>{titre}</Text>
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Nom:</Text>
-      <Text style={styles.infoValue}>{magasin?.nom || 'N/A'}</Text>
-    </View>
-    {vendeur ? (
+const MagasinBlock: React.FC<{ titre: string; magasin?: Commande['magasin']; vendeur?: string }> = ({ titre, magasin, vendeur }) => {
+  const adresse = magasin?.adresse
+    ? (magasin.codePostal && magasin.ville
+        ? `${magasin.adresse}, ${magasin.codePostal} ${magasin.ville}`
+        : magasin.adresse)
+    : '';
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{titre}</Text>
       <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Vendeur:</Text>
-        <Text style={styles.infoValue}>{vendeur}</Text>
+        <Text style={styles.infoLabel}>Nom:</Text>
+        <Text style={styles.infoValue}>{magasin?.nom || 'N/A'}</Text>
       </View>
-    ) : null}
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Téléphone:</Text>
-      <Text style={[styles.infoValue, styles.phoneLink]}>{magasin?.telephone || 'N/A'}</Text>
+      {vendeur ? (
+        <View style={styles.infoRow}>
+          <Text style={styles.infoLabel}>Vendeur:</Text>
+          <Text style={styles.infoValue}>{vendeur}</Text>
+        </View>
+      ) : null}
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>Téléphone:</Text>
+        <PhoneValue phone={magasin?.telephone} />
+      </View>
+      <View style={styles.infoRow}>
+        <Text style={styles.infoLabel}>Adresse:</Text>
+        <AddressValue label={adresse} />
+      </View>
     </View>
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>Adresse:</Text>
-      <Text style={styles.infoValue}>
-        {magasin?.adresse
-          ? (magasin.codePostal && magasin.ville
-              ? `${magasin.adresse}, ${magasin.codePostal} ${magasin.ville}`
-              : magasin.adresse)
-          : 'N/A'}
-      </Text>
-    </View>
-  </View>
-);
+  );
+};
 
 // ─── Onglet Informations ───────────────────────────────────────────────────
 const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
@@ -177,13 +254,21 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
             </View>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Téléphone:</Text>
-              <Text style={[styles.infoValue, styles.phoneLink]}>
-                {commande.client?.telephone || 'N/A'}
-              </Text>
+              <PhoneValue phone={commande.client?.telephone} />
             </View>
+            {!!commande.client?.telephoneSecondaire && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Tél. 2:</Text>
+                <PhoneValue phone={commande.client.telephoneSecondaire} />
+              </View>
+            )}
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Adresse:</Text>
-              <Text style={styles.infoValue}>{commande.client?.adresseLigne1 || 'N/A'}</Text>
+              <AddressValue
+                label={commande.client?.adresseLigne1}
+                navigateTo={[commande.client?.adresseLigne1, commande.client?.adresseLigne2, commande.client?.codePostal, commande.client?.ville]
+                  .filter(Boolean).join(' ')}
+              />
             </View>
             {!!commande.client?.etage && (
               <View style={styles.infoRow}>
@@ -266,9 +351,7 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
               <Text style={styles.chauffeurName}>
                 {[chauffeur.prenom, chauffeur.nom].filter(Boolean).join(' ') || 'Chauffeur'}
               </Text>
-              {!!chauffeur.telephone && (
-                <Text style={[styles.infoValue, styles.phoneLink]}>{'📞 ' + chauffeur.telephone}</Text>
-              )}
+              {!!chauffeur.telephone && <PhoneValue phone={chauffeur.telephone} />}
             </View>
           ))
         ) : (
@@ -870,30 +953,6 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     if (si === ci) return 'current';
     return 'future';
   };
-
-  // ── GPS Navigation ──
-  const openMaps = useCallback((address: string) => {
-    if (!address) {
-      Alert.alert('Adresse manquante', 'Aucune adresse disponible pour la navigation');
-      return;
-    }
-    const encoded = encodeURIComponent(address);
-    const nativeUrl = Platform.OS === 'ios'
-      ? `maps:?q=${encoded}`
-      : `geo:0,0?q=${encoded}`;
-    Linking.openURL(nativeUrl).catch(() =>
-      Linking.openURL(`https://maps.google.com/?q=${encoded}`)
-        .catch(() => Alert.alert('Erreur', "Impossible d'ouvrir la navigation"))
-    );
-  }, []);
-
-  // ── Appel téléphonique ──
-  const callPhone = useCallback((phone: string) => {
-    const cleaned = phone.replace(/\s/g, '');
-    Linking.openURL(`tel:${cleaned}`).catch(() =>
-      Alert.alert('Erreur', "Impossible de passer l'appel")
-    );
-  }, []);
 
   // ── Action statut principal ──
   const handleAction = useCallback(async () => {
@@ -2135,6 +2194,13 @@ const styles = StyleSheet.create({
   },
   phoneLink: {
     color: '#3B82F6',
+  },
+  addressLink: {
+    color: '#3B82F6',
+    textDecorationLine: 'underline',
+  },
+  pressableValue: {
+    flex: 1,
   },
   articleCard: {
     backgroundColor: '#F3F4F6',
