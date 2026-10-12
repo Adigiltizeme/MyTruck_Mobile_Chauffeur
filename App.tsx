@@ -54,17 +54,20 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   }
 });
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import * as Notifications from 'expo-notifications';
 
 // Contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Screens
 import LoginScreen from './screens/LoginScreen';
+import CommandeDetailScreen from './screens/CommandeDetailScreen';
+import type { PushNotificationData } from './services/push-notifications.service';
 
 // Navigation
 import BottomTabsNavigator from './navigation/BottomTabsNavigator';
@@ -75,12 +78,61 @@ import { Colors } from './constants/Colors';
 
 // Créer le Stack Navigator
 const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
+/** Ouvre l'écran correspondant à une notification touchée (app ouverte, en arrière-plan ou fermée). */
+function openFromNotification(data: PushNotificationData) {
+  if (!navigationRef.isReady()) return false;
+  if (data.type === 'NOUVEAU_MESSAGE') {
+    (navigationRef as any).navigate('Main', {
+      screen: 'Messaging',
+      params: data.conversationId ? { conversationId: data.conversationId } : undefined,
+    });
+  } else if (data.type === 'COURSE_RETIREE') {
+    // La course n'est plus la sienne : retour à la liste plutôt qu'au détail
+    (navigationRef as any).navigate('Main', { screen: 'Deliveries' });
+  } else if (data.commandeId) {
+    navigationRef.navigate('CommandeDetail', { commandeId: data.commandeId });
+  }
+  return true;
+}
 
 /**
  * Navigation principale de l'app
  */
 function AppNavigator() {
   const { isAuthenticated, loading } = useAuth();
+  const pendingRef = useRef<PushNotificationData | null>(null);
+  const handledIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handle = (response: Notifications.NotificationResponse) => {
+      const id = response.notification.request.identifier;
+      if (handledIdRef.current === id) return;
+      handledIdRef.current = id;
+      const data = (response.notification.request.content.data || {}) as PushNotificationData;
+      if (!openFromNotification(data)) pendingRef.current = data;
+    };
+
+    // App lancée en touchant une notification alors qu'elle était fermée.
+    // On efface ensuite cette réponse pour ne pas la rejouer au prochain lancement normal.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handle(response);
+        Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+      }
+    });
+    const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+    return () => subscription.remove();
+  }, [isAuthenticated]);
+
+  const handleNavigationReady = () => {
+    if (pendingRef.current && openFromNotification(pendingRef.current)) {
+      pendingRef.current = null;
+    }
+  };
 
   // Afficher un spinner pendant la vérification de session
   if (loading) {
@@ -92,7 +144,7 @@ function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} onReady={handleNavigationReady}>
       <Stack.Navigator
         screenOptions={{
           headerShown: false, // Cacher le header par défaut
@@ -104,7 +156,10 @@ function AppNavigator() {
           <Stack.Screen name="Login" component={LoginScreen} />
         ) : (
           // Écrans protégés (connecté) - Navigation par Bottom Tabs
-          <Stack.Screen name="Main" component={BottomTabsNavigator} />
+          <>
+            <Stack.Screen name="Main" component={BottomTabsNavigator} />
+            <Stack.Screen name="CommandeDetail" component={CommandeDetailScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

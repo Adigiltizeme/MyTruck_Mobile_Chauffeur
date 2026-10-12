@@ -12,10 +12,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Linking,
-  ActionSheetIOS,
   TextInput,
-  Platform,
   Image,
   Modal,
   Dimensions,
@@ -31,6 +28,9 @@ import commandesService from '../../services/commandes.service';
 import { uploadPhotoToCloudinary, uploadBase64ToCloudinary } from '../../services/cloudinary.service';
 import { useAuth } from '../../contexts/AuthContext';
 import SignatureCanvas from 'react-native-signature-canvas';
+import { callPhone, openMaps } from '../../utils/contact-links';
+import { isAdminRole } from '../../shared/utils/role-helpers';
+import { AdminActionsTab } from './AdminActionsTab';
 
 type TabType = 'info' | 'conditions' | 'photos-articles' | 'photos-comments' | 'chronologie' | 'actions';
 
@@ -40,6 +40,8 @@ interface DeliveryDetailsProps {
 }
 
 export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onStatusChanged }) => {
+  const { user } = useAuth();
+  const isAdmin = isAdminRole(user?.role);
   const [activeTab, setActiveTab] = useState<TabType>('actions');
 
   return (
@@ -99,66 +101,12 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
         {activeTab === 'photos-articles'  && <PhotosArticlesTab commande={commande} />}
         {activeTab === 'photos-comments'  && <PhotosCommentsTab commande={commande} onStatusChanged={onStatusChanged} />}
         {activeTab === 'chronologie'      && <ChronologieTab commande={commande} />}
-        {activeTab === 'actions'          && <ActionsTab commande={commande} onStatusChanged={onStatusChanged} />}
+        {activeTab === 'actions' && (isAdmin
+          ? <AdminActionsTab commande={commande} onChanged={onStatusChanged} />
+          : <ActionsTab commande={commande} onStatusChanged={onStatusChanged} />)}
       </View>
     </View>
   );
-};
-
-// ─── Appel / navigation (partagés par les onglets Informations et Actions) ──
-const callPhone = (phone: string) => {
-  const cleaned = phone.replace(/\s/g, '');
-  Linking.openURL(`tel:${cleaned}`).catch(() =>
-    Alert.alert('Erreur', "Impossible de passer l'appel")
-  );
-};
-
-const openMaps = (address: string) => {
-  if (!address) {
-    Alert.alert('Adresse manquante', 'Aucune adresse disponible pour la navigation');
-    return;
-  }
-  const encoded = encodeURIComponent(address);
-  const openWithFallback = (url: string, fallback: string) =>
-    Linking.openURL(url).catch(() =>
-      Linking.openURL(fallback)
-        .catch(() => Alert.alert('Erreur', "Impossible d'ouvrir la navigation"))
-    );
-
-  // Android : geo: déclenche déjà le sélecteur natif d'applications
-  if (Platform.OS !== 'ios') {
-    openWithFallback(`geo:0,0?q=${encoded}`, `https://maps.google.com/?q=${encoded}`);
-    return;
-  }
-
-  // iOS : pas de sélecteur système → proposer les apps de navigation installées
-  // (schémas déclarés dans LSApplicationQueriesSchemes de app.json, requis par canOpenURL)
-  const apps = [
-    { label: 'Plans', url: `maps://?daddr=${encoded}`, fallback: `https://maps.apple.com/?daddr=${encoded}`, always: true },
-    { label: 'Google Maps', url: `comgooglemaps://?daddr=${encoded}&directionsmode=driving`, fallback: `https://www.google.com/maps/dir/?api=1&destination=${encoded}`, always: false },
-    { label: 'Waze', url: `waze://?q=${encoded}&navigate=yes`, fallback: `https://waze.com/ul?q=${encoded}&navigate=yes`, always: false },
-  ];
-
-  Promise.all(apps.map(a => (a.always ? true : Linking.canOpenURL(a.url).catch(() => false))))
-    .then((installed) => {
-      const choices = apps.filter((_, i) => installed[i]);
-      if (choices.length === 1) {
-        openWithFallback(choices[0].url, choices[0].fallback);
-        return;
-      }
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: 'Naviguer avec…',
-          message: address,
-          options: [...choices.map(a => a.label), 'Annuler'],
-          cancelButtonIndex: choices.length,
-        },
-        (index: number) => {
-          const app = choices[index];
-          if (app) openWithFallback(app.url, app.fallback);
-        }
-      );
-    });
 };
 
 const PhoneValue: React.FC<{ phone?: string | null }> = ({ phone }) =>

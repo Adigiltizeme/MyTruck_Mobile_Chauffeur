@@ -4,7 +4,7 @@
  */
 
 // Types de statuts
-export type StatutCommande = 'En attente' | 'Confirmée' | 'En cours' | 'Livrée' | 'Annulée';
+export type StatutCommande = 'En attente' | 'Confirmée' | 'Modifiée' | 'En cours' | 'Livrée' | 'Annulée';
 export type StatutLivraison = 'EN ATTENTE' | 'CONFIRMEE' | 'ENLEVEE' | 'EN COURS DE LIVRAISON' | 'LIVREE' | 'ANNULEE' | 'ECHEC';
 export type PhotoType = 'ARTICLE' | 'ENLEVEMENT' | 'LIVRAISON' | 'PREUVE_LIVRAISON';
 export type RapportType = 'ENLEVEMENT' | 'LIVRAISON';
@@ -15,6 +15,7 @@ export interface User {
   email: string;
   role: string;
   chauffeurId?: string;
+  organisationId?: string | null;
   nom?: string;
   prenom?: string;
   telephone?: string;
@@ -232,6 +233,7 @@ export interface AuthState {
 export type RootStackParamList = {
   Login: undefined;
   Main: undefined; // Bottom Tabs Navigator
+  CommandeDetail: { commandeId: string }; // Ouverture depuis une notification push
   Dashboard: undefined;
   Retrait: { commandeId: string };
   Livraison: { commandeId: string };

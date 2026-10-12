@@ -20,6 +20,7 @@ import { DeliveriesTable } from '../components/dashboard/DeliveriesTable';
 import DateFilterSelector, { PeriodType } from '../components/dashboard/DateFilterSelector';
 import CustomDatePicker, { DateRange } from '../components/dashboard/CustomDatePicker';
 import type { Commande } from '../constants/Types';
+import { isAdminRole } from '../shared/utils/role-helpers';
 import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 
 export default function DashboardScreen() {
@@ -46,15 +47,16 @@ export default function DashboardScreen() {
     const chauffeurId = user?.chauffeurId || user?.id;
 
     if (!chauffeurId) {
-      console.warn('⚠️ Aucun chauffeurId trouvé');
+      console.warn('⚠️ Aucun identifiant utilisateur trouvé');
       setLoading(false);
       return;
     }
 
     try {
-      if (__DEV__) console.log('📦 Chargement commandes pour chauffeur:', chauffeurId);
-
-      const response = await commandesService.getCommandesByChauffeur(chauffeurId);
+      // Admin : métriques de tout le périmètre ; chauffeur : ses courses
+      const response = isAdminRole(user?.role)
+        ? await commandesService.getAllCommandes()
+        : await commandesService.getCommandesByChauffeur(chauffeurId);
 
       if (response.success && response.data) {
         const commandesList = Array.isArray(response.data) ? response.data : [];

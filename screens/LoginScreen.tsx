@@ -15,8 +15,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { LEGAL_URLS } from '../constants/API';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -143,12 +145,39 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Documents légaux accessibles avant connexion (exigence des stores) */}
+        <View style={styles.legalRow}>
+          <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.CONFIDENTIALITE)}>
+            <Text style={styles.legalLink}>Confidentialité</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSeparator}>·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.CGU)}>
+            <Text style={styles.legalLink}>Conditions d'utilisation</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  legalRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+  },
+  legalLink: {
+    fontSize: 12,
+    color: '#6B7280',
+    textDecorationLine: 'underline',
+  },
+  legalSeparator: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB', // bg-gray-50 (exact web)

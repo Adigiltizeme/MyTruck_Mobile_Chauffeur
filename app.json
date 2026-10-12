@@ -31,6 +31,7 @@
     },
     "android": {
       "package": "com.mytruck.chauffeur",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -53,7 +54,8 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -83,7 +85,13 @@
       ],
       "expo-secure-store",
       "@react-native-community/datetimepicker",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#E11D48"
+        }
+      ]
     ],
     "extra": {
       "eas": {

@@ -9,22 +9,24 @@ import { UserRole } from '../types/dashboard.types';
  * Vérifie si un rôle a les permissions administrateur
  * (admin et direction ont les mêmes accès)
  */
+// Le backend renvoie les rôles en majuscules (ADMIN, CHAUFFEUR…) : comparaison insensible à la casse
 export function isAdminRole(role?: UserRole | string): boolean {
-    return role === 'admin' || role === 'direction';
+    const r = role?.toLowerCase();
+    return r === 'admin' || r === 'direction';
 }
 
 /**
  * Vérifie si un rôle est magasin
  */
 export function isMagasinRole(role?: UserRole | string): boolean {
-    return role === 'magasin';
+    return role?.toLowerCase() === 'magasin';
 }
 
 /**
  * Vérifie si un rôle est chauffeur
  */
 export function isChauffeurRole(role?: UserRole | string): boolean {
-    return role === 'chauffeur';
+    return role?.toLowerCase() === 'chauffeur';
 }
 
 /**

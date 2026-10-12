@@ -6,6 +6,15 @@
 // URL Backend depuis variable d'environnement (EAS env ou .env local)
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? '';
 
+// Application web (pages légales publiques). Repli : URL de production connue du backend.
+export const WEB_APP_URL = process.env.EXPO_PUBLIC_WEB_APP_URL ?? 'https://mytruck-transport.vercel.app';
+
+export const LEGAL_URLS = {
+  MENTIONS: `${WEB_APP_URL}/legal/mentions-legales`,
+  CGU: `${WEB_APP_URL}/legal/cgu`,
+  CONFIDENTIALITE: `${WEB_APP_URL}/legal/confidentialite`,
+};
+
 // Préfixe API v1
 export const API_PREFIX = '/api/v1';
 
@@ -37,12 +46,43 @@ export const COMMANDES_ENDPOINTS = {
   UPDATE_RAPPORT: (id: string, type: string) => `/commandes/${id}/rapports/${type}`,
   DELETE_RAPPORT: (id: string, type: string) => `/commandes/${id}/rapports/${type}`,
   SAVE_SIGNATURE: (id: string) => `/commandes/${id}/signature-livraison`,
+  // Actions admin / direction
+  ASSIGN_CHAUFFEURS: (id: string) => `/commandes/${id}/assign-chauffeurs`,
+  UPDATE_STATUTS: (id: string) => `/commandes/${id}/statuts`,
+};
+
+// Endpoints Messagerie (mêmes routes que la messagerie web)
+export const MESSAGING_ENDPOINTS = {
+  CONVERSATIONS: '/messaging/conversations',
+  CONVERSATION: (id: string) => `/messaging/conversations/${id}`,
+  MARK_READ: (id: string) => `/messaging/conversations/${id}/read`,
+  USER_DIRECTION: '/messaging/conversations/user-direction',
+  MESSAGES: '/messaging/messages',
+};
+
+// Endpoints Magasins (noms des interlocuteurs côté admin)
+export const MAGASINS_ENDPOINTS = {
+  BASE: '/magasins',
+};
+
+// Endpoints Chauffeurs (liste pour le dispatch admin)
+export const CHAUFFEURS_ENDPOINTS = {
+  BASE: '/chauffeurs',
+};
+
+// Endpoints Notifications push
+export const NOTIFICATIONS_ENDPOINTS = {
+  REGISTER_DEVICE: '/notifications/devices',
+  // Sans session : utilisable après expiration du JWT ou en différé
+  FORGET_DEVICE: '/notifications/devices/forget',
 };
 
 // Endpoints Tracking GPS
 export const TRACKING_ENDPOINTS = {
   WEBSOCKET: '/tracking',
   UPDATE_LOCATION: '/tracking/location',
+  SHARE_LINK: (commandeId: string) => `/tracking/share/${commandeId}`,
+  LAST_POSITION: (commandeId: string) => `/tracking/commande/${commandeId}/last-position`,
 };
 
 // Timeout requêtes (en ms)

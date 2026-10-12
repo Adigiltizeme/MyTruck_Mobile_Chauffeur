@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import authService from '../services/auth.service';
+import pushNotificationsService from '../services/push-notifications.service';
 import type { User, AuthState } from '../constants/Types';
 
 // Interface du contexte
@@ -58,8 +59,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           token: session.token,
           loading: false,
         });
+        // Réassocie l'appareil (jeton push renouvelé, réinstallation…) sans bloquer le démarrage
+        pushNotificationsService.register();
       } else {
         if (__DEV__) console.log('⚠️ [AUTH] Aucune session trouvée');
+        pushNotificationsService.retryPendingForget();
 
         setState({
           isAuthenticated: false,
@@ -105,6 +109,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           token,
           loading: false,
         });
+        pushNotificationsService.register();
 
         return { success: true };
       }
@@ -132,6 +137,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       if (__DEV__) console.log('🚪 [AUTH] Déconnexion...');
 
+      // Avant de supprimer le JWT : le backend doit encore authentifier la requête
+      await pushNotificationsService.unregister();
       await authService.logout();
 
       setState({

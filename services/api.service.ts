@@ -128,6 +128,21 @@ export const apiService = {
   },
 
   /**
+   * PUT request
+   */
+  async put<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {
+    try {
+      const response = await apiClient.put<T>(url, data);
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      return this.handleError(error);
+    }
+  },
+
+  /**
    * DELETE request (with optional body)
    */
   async delete<T = any>(url: string, data?: any): Promise<ApiResponse<T>> {

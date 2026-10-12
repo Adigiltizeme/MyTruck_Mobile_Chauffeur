@@ -6,6 +6,7 @@
 import apiService from './api.service';
 import { AUTH_ENDPOINTS } from '../constants/API';
 import type { LoginResponse, User, ApiResponse } from '../constants/Types';
+import { isAdminRole, isChauffeurRole } from '../shared/utils/role-helpers';
 
 export const authService = {
   /**
@@ -41,13 +42,12 @@ export const authService = {
           };
         }
 
-        // Vérifier que c'est un chauffeur (role en majuscules: CHAUFFEUR)
-        const roleUpperCase = user.role?.toUpperCase();
-        if (roleUpperCase !== 'CHAUFFEUR') {
+        // L'app mobile est ouverte aux chauffeurs et aux admins/direction (pas aux magasins)
+        if (!isChauffeurRole(user.role) && !isAdminRole(user.role)) {
           console.warn('⚠️ [AUTH] Rôle non autorisé:', user.role);
           return {
             success: false,
-            error: 'Accès réservé aux chauffeurs uniquement',
+            error: 'Accès réservé aux chauffeurs et à la direction',
           };
         }
 

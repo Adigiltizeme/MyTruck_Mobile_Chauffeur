@@ -6,7 +6,7 @@
 import apiService from './api.service';
 import commandesTransformerService from './commandes-transformer.service';
 import { uploadPhotoToCloudinary } from './cloudinary.service';
-import { COMMANDES_ENDPOINTS } from '../constants/API';
+import { COMMANDES_ENDPOINTS, CHAUFFEURS_ENDPOINTS, TRACKING_ENDPOINTS } from '../constants/API';
 import type {
   Commande,
   ApiResponse,
@@ -16,7 +16,83 @@ import type {
   StatutCommande,
 } from '../constants/Types';
 
+// Liste admin : le backend renvoie toutes les commandes du périmètre (My Truck ou organisation)
+const ADMIN_CHAUFFEURS_PAGE_SIZE = 500;
+
+export interface ChauffeurOption {
+  id: string;
+  nom: string;
+  prenom?: string;
+  telephone?: string;
+  status?: string;
+}
+
 export const commandesService = {
+  /**
+   * [Admin] Toutes les commandes et cessions du périmètre de l'utilisateur
+   */
+  async getAllCommandes(): Promise<ApiResponse<Commande[]>> {
+    const response = await apiService.get<any>(COMMANDES_ENDPOINTS.BASE);
+    if (response.success && response.data) {
+      const raw = Array.isArray(response.data) ? response.data : response.data.data || [];
+      return { success: true, data: commandesTransformerService.transformCommandes(raw) };
+    }
+    return { success: false, data: [], error: response.error || 'Erreur chargement commandes' };
+  },
+
+  /**
+   * [Admin] Chauffeurs disponibles pour le dispatch
+   */
+  async getChauffeurs(): Promise<ApiResponse<ChauffeurOption[]>> {
+    const response = await apiService.get<any>(CHAUFFEURS_ENDPOINTS.BASE, { take: ADMIN_CHAUFFEURS_PAGE_SIZE });
+    if (response.success && response.data) {
+      const list = Array.isArray(response.data) ? response.data : response.data.data || [];
+      return { success: true, data: list };
+    }
+    return { success: false, data: [], error: response.error };
+  },
+
+  /**
+   * [Admin] Remplace la liste des chauffeurs assignés (liste vide = tout retirer)
+   */
+  async assignChauffeurs(commandeId: string, chauffeurIds: string[]): Promise<ApiResponse<any>> {
+    return apiService.patch(COMMANDES_ENDPOINTS.ASSIGN_CHAUFFEURS(commandeId), {
+      chauffeurIds,
+      replaceAll: true,
+    });
+  },
+
+  /**
+   * [Admin] Changer statut commande et/ou livraison — comme le web, l'admin peut forcer la transition
+   */
+  async updateStatuts(
+    commandeId: string,
+    updates: { statutCommande?: StatutCommande; statutLivraison?: StatutLivraison; reason?: string }
+  ): Promise<ApiResponse<any>> {
+    return apiService.patch(COMMANDES_ENDPOINTS.UPDATE_STATUTS(commandeId), { ...updates, forceUpdate: true });
+  },
+
+  /**
+   * [Admin] Définir le tarif HT
+   */
+  async updateTarif(commandeId: string, tarifHT: number): Promise<ApiResponse<any>> {
+    return apiService.patch(COMMANDES_ENDPOINTS.BY_ID(commandeId), { tarifHT });
+  },
+
+  /**
+   * [Admin] Lien public de suivi à partager au client
+   */
+  async getTrackingShareLink(commandeId: string): Promise<ApiResponse<{ url: string }>> {
+    return apiService.post<{ url: string }>(TRACKING_ENDPOINTS.SHARE_LINK(commandeId));
+  },
+
+  /**
+   * [Admin] Dernière position connue du chauffeur sur cette commande
+   */
+  async getLastPosition(commandeId: string): Promise<ApiResponse<{ latitude: number; longitude: number; timestamp?: string } | null>> {
+    return apiService.get(TRACKING_ENDPOINTS.LAST_POSITION(commandeId));
+  },
+
   /**
    * Récupérer les commandes d'un chauffeur
    * @param chauffeurId - ID du chauffeur
@@ -67,11 +143,16 @@ export const commandesService = {
     try {
       console.log('📦 [COMMANDES] Récupération commande:', commandeId);
 
-      const response = await apiService.get<Commande>(
+      const response = await apiService.get<any>(
         COMMANDES_ENDPOINTS.BY_ID(commandeId)
       );
 
-      return response;
+      if (response.success && response.data) {
+        const raw = response.data?.data ?? response.data;
+        return { success: true, data: commandesTransformerService.transformCommande(raw) };
+      }
+
+      return { success: false, error: response.error || 'Commande introuvable' };
     } catch (error) {
       console.error('❌ [COMMANDES] Erreur récupération commande:', error);
       return {

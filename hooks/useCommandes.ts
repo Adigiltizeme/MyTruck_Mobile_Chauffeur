@@ -11,6 +11,7 @@ import { StorageService } from '../services/storage.service';
 import { API_BASE_URL } from '../constants/API';
 import type { Commande } from '../constants/Types';
 import commandesService from '../services/commandes.service';
+import { isAdminRole } from '../shared/utils/role-helpers';
 
 interface UseCommandesProps {
   onCommandeUpdated?: (data: any) => void;
@@ -36,11 +37,11 @@ export const useCommandes = ({
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Charger les commandes du chauffeur
+   * Charger les commandes : toutes celles du périmètre pour un admin, celles assignées pour un chauffeur
    */
   const loadCommandes = useCallback(async () => {
     if (!user?.chauffeurId && !user?.id) {
-      console.warn('⚠️ [useCommandes] No chauffeur ID');
+      console.warn('⚠️ [useCommandes] No user ID');
       return;
     }
 
@@ -48,8 +49,9 @@ export const useCommandes = ({
     setError(null);
 
     try {
-      const chauffeurId = user.chauffeurId || user.id;
-      const response = await commandesService.getCommandesByChauffeur(chauffeurId);
+      const response = isAdminRole(user.role)
+        ? await commandesService.getAllCommandes()
+        : await commandesService.getCommandesByChauffeur(user.chauffeurId || user.id);
 
       if (response.success && response.data) {
         console.log(`✅ [useCommandes] Loaded ${response.data.length} commandes`);

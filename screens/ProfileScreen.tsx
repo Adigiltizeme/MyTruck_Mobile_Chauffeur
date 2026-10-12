@@ -1,11 +1,12 @@
 /**
- * ProfileScreen - Profil chauffeur
- * TODO: Dupliquer Profile.tsx web
+ * ProfileScreen - Profil utilisateur (chauffeur ou admin) + informations légales
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, Linking } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { getRoleLabel } from '../shared/utils/role-helpers';
+import { LEGAL_URLS } from '../constants/API';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -24,7 +25,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
       <View style={styles.header}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
@@ -49,16 +50,28 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.label}>👤 Rôle:</Text>
-          <Text style={styles.value}>Chauffeur</Text>
+          <Text style={styles.value}>{getRoleLabel(user?.role?.toLowerCase())}</Text>
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Informations légales</Text>
+        {[
+          { label: 'Politique de confidentialité', url: LEGAL_URLS.CONFIDENTIALITE },
+          { label: "Conditions générales d'utilisation", url: LEGAL_URLS.CGU },
+          { label: 'Mentions légales', url: LEGAL_URLS.MENTIONS },
+        ].map(link => (
+          <TouchableOpacity key={link.url} style={styles.infoRow} onPress={() => Linking.openURL(link.url)}>
+            <Text style={styles.linkText}>{link.label}</Text>
+            <Text style={styles.label}>›</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>🚪 Déconnexion</Text>
       </TouchableOpacity>
-
-      <Text style={styles.subtitle}>Profil complet à implémenter (Phase 8)</Text>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -131,6 +144,10 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#2563EB',
   },
   logoutText: {
     fontSize: 16,

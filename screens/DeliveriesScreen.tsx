@@ -22,23 +22,38 @@ import { useCommandes } from '../hooks/useCommandes';
 import type { Commande } from '../constants/Types';
 import { DeliveryCard } from '../components/deliveries/DeliveryCard';
 import { DeliveryDetails } from '../components/deliveries/DeliveryDetails';
+import { isAdminRole } from '../shared/utils/role-helpers';
 
 type TabFilter = 'all' | 'today' | 'upcoming' | 'history';
+type TypeFilter = 'all' | 'CLIENT' | 'INTER_MAGASIN';
+
+const TYPE_FILTER_LABELS: Record<TypeFilter, string> = {
+  all: 'Tout',
+  CLIENT: 'Livraisons',
+  INTER_MAGASIN: 'Cessions',
+};
 
 export const DeliveriesScreen: React.FC = () => {
   const { user } = useAuth();
-  const { commandes, loading, refresh } = useCommandes({ autoConnect: true, autoLoad: true });
+  const isAdmin = isAdminRole(user?.role);
+  const { commandes: allCommandes, loading, refresh } = useCommandes({ autoConnect: true, autoLoad: true });
 
   // États
   const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [selectedCommandeId, setSelectedCommandeId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
+  // Admin : filtre Livraisons / Cessions appliqué avant les filtres de période
+  const commandes = useMemo(
+    () => (typeFilter === 'all' ? allCommandes : allCommandes.filter(c => (c.type || 'CLIENT') === typeFilter)),
+    [allCommandes, typeFilter]
+  );
+
   // Filtrage IDENTIQUE version web (lignes 81-120)
   const filteredCommandes = useMemo(() => {
-    const now = new Date();
     const todayFrance = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Paris' });
     const todayStr = todayFrance; // Format YYYY-MM-DD
 
@@ -77,12 +92,15 @@ export const DeliveriesScreen: React.FC = () => {
           cmd.client?.prenom?.toLowerCase().includes(search) ||
           // Cessions : magasin cédant et magasin demandeur
           cmd.magasin?.nom?.toLowerCase().includes(search) ||
-          cmd.magasinDestination?.nom?.toLowerCase().includes(search)
+          cmd.magasinDestination?.nom?.toLowerCase().includes(search) ||
+          // Admin : retrouver les courses d'un chauffeur
+          (isAdmin && cmd.chauffeurs?.some(ch =>
+            `${ch.prenom || ''} ${ch.nom || ''}`.toLowerCase().includes(search)))
       );
     }
 
     return filtered;
-  }, [commandes, activeTab, searchText]);
+  }, [commandes, activeTab, searchText, isAdmin]);
 
   // Compteurs IDENTIQUES version web (lignes 133-194)
   const tabCounts = useMemo(() => {
@@ -158,7 +176,7 @@ export const DeliveriesScreen: React.FC = () => {
         {activeTab === 'today' && "Aucune livraison prévue aujourd'hui"}
         {activeTab === 'upcoming' && 'Aucune livraison à venir'}
         {activeTab === 'history' && 'Aucune livraison passée'}
-        {activeTab === 'all' && 'Aucune commande assignée'}
+        {activeTab === 'all' && (isAdmin ? 'Aucune commande' : 'Aucune commande assignée')}
       </Text>
     </View>
   );
@@ -167,8 +185,9 @@ export const DeliveriesScreen: React.FC = () => {
   const ListHeaderComponent = () => (
     <View style={styles.resultHeader}>
       <Text style={styles.resultText}>
-        Affichage de {filteredCommandes.length} commande(s) assignée(s) à {user?.prenom}{' '}
-        {user?.nom}
+        {isAdmin
+          ? `Affichage de ${filteredCommandes.length} commande(s)`
+          : `Affichage de ${filteredCommandes.length} commande(s) assignée(s) à ${user?.prenom ?? ''} ${user?.nom ?? ''}`}
       </Text>
     </View>
   );
@@ -178,9 +197,27 @@ export const DeliveriesScreen: React.FC = () => {
       {/* En-tête */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>
-          Mes Livraisons - {user?.prenom} {user?.nom}
+          {isAdmin ? 'Livraisons & cessions' : `Mes Livraisons - ${user?.prenom ?? ''} ${user?.nom ?? ''}`}
         </Text>
       </View>
+
+      {/* Admin : type de course */}
+      {isAdmin && (
+        <View style={styles.typeRow}>
+          {(Object.keys(TYPE_FILTER_LABELS) as TypeFilter[]).map((t) => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.tabChip, typeFilter === t && styles.tabChipActive]}
+              onPress={() => setTypeFilter(t)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.tabChipText, typeFilter === t && styles.tabChipTextActive]}>
+                {TYPE_FILTER_LABELS[t]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Barre de recherche + toggle filtres — ligne compacte */}
       <View style={styles.searchRow}>
@@ -345,6 +382,13 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: '#EF4444',
+  },
+  typeRow: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    flexDirection: 'row',
+    gap: 6,
   },
   // Chips de filtre collapsables
   tabsRow: {
