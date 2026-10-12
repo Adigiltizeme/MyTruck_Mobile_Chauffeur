@@ -27,7 +27,7 @@
           "waze"
         ]
       },
-      "buildNumber": "3"
+      "buildNumber": "4"
     },
     "android": {
       "package": "com.mytruck.chauffeur",
