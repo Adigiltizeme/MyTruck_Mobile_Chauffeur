@@ -1,4 +1,4 @@
-# Mise à jour OTA automatique : chaque push sur master publie le code JS sur le canal "production".
+# Mise à jour OTA automatique : chaque push sur master publie le code JS (iOS → production, Android → preview).
 # Si un fichier natif a changé (dépendances, app.json, plugins…), l'OTA est bloquée :
 # les apps installées ne pourraient pas l'exécuter, il faut un nouveau build EAS.
 name: EAS Update
@@ -31,7 +31,7 @@ jobs:
             package.json package-lock.json app.json app.config.js eas.json \
             google-services.json GoogleService-Info.plist ios android || true)
           if [ -n "$CHANGED" ]; then
-            echo "::warning::Fichiers natifs modifiés, OTA non publiée. Lancer un build : eas build --platform all --profile production"
+            echo "::warning::Fichiers natifs modifiés, OTA non publiée. Lancer les builds : eas build -p ios --profile production / eas build -p android --profile preview"
             echo "$CHANGED"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
@@ -54,8 +54,15 @@ jobs:
         if: steps.native.outputs.skip == 'false'
         run: npm ci
 
-      - name: Publier la mise à jour
+      # Canaux des builds installés : iOS = production, Android = preview
+      - name: Publier la mise à jour iOS (production)
         if: steps.native.outputs.skip == 'false'
         run: |
-          eas update --channel production --environment production --non-interactive \
+          eas update --channel production --environment production --platform ios --non-interactive \
+            --message "$(git log -1 --pretty=%s)"
+
+      - name: Publier la mise à jour Android (preview)
+        if: steps.native.outputs.skip == 'false'
+        run: |
+          eas update --channel preview --environment preview --platform android --non-interactive \
             --message "$(git log -1 --pretty=%s)"
