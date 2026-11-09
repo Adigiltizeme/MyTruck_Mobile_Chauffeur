@@ -56,6 +56,7 @@ export interface Client {
   codePostal: string;
   ville: string;
   email?: string;
+  interphone: string;
   etage?: string;
   typeAdresse?: string;
   ascenseur?: boolean;

@@ -218,6 +218,12 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
                   .filter(Boolean).join(' ')}
               />
             </View>
+            {!!commande.client?.interphone && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Interphone/Code:</Text>
+                <Text style={styles.infoValue}>{commande.client.interphone}</Text>
+              </View>
+            )}
             {!!commande.client?.etage && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Étage:</Text>
