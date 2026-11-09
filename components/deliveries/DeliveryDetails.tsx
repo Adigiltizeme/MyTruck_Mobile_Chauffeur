@@ -220,7 +220,7 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
             </View>
             {!!commande.client?.interphone && (
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Interphone/Code:</Text>
+                <Text style={styles.infoLabel}>Interphone/Digicode:</Text>
                 <Text style={styles.infoValue}>{commande.client.interphone}</Text>
               </View>
             )}
