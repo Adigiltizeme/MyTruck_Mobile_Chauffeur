@@ -187,6 +187,22 @@ export interface Commande {
   commentaires?: any[];
 }
 
+// Chronologie des statuts (admin) — GET /commandes/:id/historique
+export interface StatusHistoryEvent {
+  id: string;
+  statusType: 'COMMANDE' | 'LIVRAISON';
+  oldStatus: string;
+  newStatus: string;
+  reason?: string | null;
+  changedAt: string;
+  changedByName?: string | null;
+}
+
+export interface StatusHistoryData {
+  createdAt: string;
+  events: StatusHistoryEvent[];
+}
+
 // Données formulaire Photo
 export interface PhotoData {
   uri: string;

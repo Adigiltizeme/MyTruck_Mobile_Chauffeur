@@ -14,6 +14,7 @@ import type {
   RapportType,
   StatutLivraison,
   StatutCommande,
+  StatusHistoryData,
 } from '../constants/Types';
 
 // Liste admin : le backend renvoie toutes les commandes du périmètre (My Truck ou organisation)
@@ -350,6 +351,13 @@ export const commandesService = {
       console.error('❌ [COMMANDES] Erreur sauvegarde signature:', error);
       return { success: false, error: 'Erreur lors de la sauvegarde de la signature' };
     }
+  },
+
+  /**
+   * [Admin] Chronologie des changements de statut, avec leur auteur
+   */
+  async getStatusHistory(commandeId: string): Promise<ApiResponse<StatusHistoryData>> {
+    return apiService.get<StatusHistoryData>(COMMANDES_ENDPOINTS.HISTORIQUE(commandeId));
   },
 
   async getRapports(commandeId: string): Promise<ApiResponse<any[]>> {

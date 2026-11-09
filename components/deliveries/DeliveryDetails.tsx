@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import type { Commande, StatutLivraison, PhotoType } from '../../constants/Types';
+import type { Commande, StatutLivraison, PhotoType, StatusHistoryData } from '../../constants/Types';
 import { gpsTrackingService, type TrackingStatus } from '../../services/gps-tracking.service';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -33,7 +33,7 @@ import { isAdminRole } from '../../shared/utils/role-helpers';
 import { AdminActionsTab } from './AdminActionsTab';
 import { shareTrackingWithRecipient } from '../../utils/share-tracking';
 
-type TabType = 'info' | 'conditions' | 'photos-articles' | 'preuves' | 'rapports' | 'actions';
+type TabType = 'info' | 'conditions' | 'photos-articles' | 'preuves' | 'rapports' | 'chronologie' | 'actions';
 
 interface DeliveryDetailsProps {
   commande: Commande;
@@ -90,6 +90,7 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
       { key: 'photos-articles', label: 'Photos articles', icon: 'camera-outline', show: (commande.photos || []).some(p => p.type === 'ARTICLE') },
       { key: 'preuves', label: 'Preuves', icon: 'checkmark-done-outline', show: hasPreuves(commande) },
       { key: 'rapports', label: 'Rapports & réserves', icon: 'alert-circle-outline', show: hasRapports(commande) },
+      { key: 'chronologie', label: 'Chronologie', icon: 'time-outline', show: isAdmin },
     ] as { key: TabType; label: string; icon: string; show: boolean }[]
   ).filter(t => t.show);
   const currentTab: TabType = tabs.some(t => t.key === activeTab) ? activeTab : 'actions';
@@ -125,6 +126,7 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
         {currentTab === 'photos-articles'  && <PhotosArticlesTab commande={commande} />}
         {currentTab === 'preuves'          && <PreuvesTab commande={commande} onStatusChanged={onStatusChanged} />}
         {currentTab === 'rapports'         && <RapportsTab commande={commande} onStatusChanged={onStatusChanged} />}
+        {currentTab === 'chronologie'      && <ChronologieTab commande={commande} />}
         {currentTab === 'actions' && (isAdmin
           ? <AdminActionsTab commande={commande} onChanged={onStatusChanged} />
           : <ActionsTab commande={commande} onStatusChanged={onStatusChanged} />)}
@@ -927,6 +929,86 @@ const RapportsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }
         </View>
       </Modal>
     </>
+  );
+};
+
+// ─── Onglet Chronologie (admin / direction) ───────────────────────────────
+// Historique réel des changements de statut, avec date, heure et auteur
+const ChronologieTab: React.FC<{ commande: Commande }> = ({ commande }) => {
+  const [data, setData] = useState<StatusHistoryData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Rechargé quand un statut change (le parent recharge la commande à chaque événement temps réel)
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    commandesService.getStatusHistory(commande.id)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.success && res.data) {
+          setData(res.data);
+          setError(null);
+        } else {
+          setError(res.error || 'Chronologie indisponible');
+        }
+      })
+      .catch(() => { if (!cancelled) setError('Erreur de connexion'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [commande.id, commande.statutCommande, commande.statutLivraison]);
+
+  if (loading && !data) {
+    return (
+      <View style={[styles.tabContent, { alignItems: 'center', paddingTop: 40 }]}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+      </View>
+    );
+  }
+  if (error && !data) {
+    return (
+      <View style={styles.tabContent}>
+        <Text style={styles.noData}>{error}</Text>
+      </View>
+    );
+  }
+
+  const events = [
+    { id: 'creation', label: 'Commande créée', detail: '', date: data?.createdAt, by: null as string | null | undefined, color: '#6B7280' },
+    ...(data?.events || []).map(e => ({
+      id: e.id,
+      label: e.statusType === 'COMMANDE' ? 'Commande' : 'Livraison',
+      detail: `${e.oldStatus} → ${e.newStatus}`,
+      date: e.changedAt,
+      by: e.changedByName,
+      color: e.statusType === 'COMMANDE' ? '#3B82F6' : '#10B981',
+      reason: e.reason,
+    })),
+  ] as { id: string; label: string; detail: string; date?: string; by?: string | null; color: string; reason?: string | null }[];
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      {events.map((event, index) => (
+        <View key={event.id} style={styles.chronoRow}>
+          <View style={styles.chronoRail}>
+            <View style={[styles.chronoDot, { backgroundColor: event.color }]} />
+            {index < events.length - 1 && <View style={styles.chronoLine} />}
+          </View>
+          <View style={styles.chronoBody}>
+            <Text style={styles.chronoTitle}>
+              {event.label}
+              {!!event.detail && <Text style={styles.chronoDetail}>{' : ' + event.detail}</Text>}
+            </Text>
+            <Text style={styles.chronoMeta}>
+              {[event.date ? format(new Date(event.date), 'dd/MM/yyyy HH:mm', { locale: fr }) : null, event.by ? `par ${event.by}` : null]
+                .filter(Boolean).join(' · ')}
+            </Text>
+            {!!event.reason && <Text style={styles.chronoMeta}>{event.reason}</Text>}
+          </View>
+        </View>
+      ))}
+      {events.length === 1 && <Text style={styles.noData}>Aucun changement de statut enregistré</Text>}
+    </ScrollView>
   );
 };
 
@@ -2135,6 +2217,16 @@ const styles = StyleSheet.create({
   ciArticleDims: { fontSize: 14, color: '#111827', fontWeight: '600' },
   ciRemarques: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
   ciRemarquesText: { fontSize: 14, color: '#111827' },
+
+  // Chronologie
+  chronoRow: { flexDirection: 'row' },
+  chronoRail: { width: 24, alignItems: 'center' },
+  chronoDot: { width: 12, height: 12, borderRadius: 6, marginTop: 4 },
+  chronoLine: { flex: 1, width: 2, backgroundColor: '#E5E7EB', marginVertical: 2 },
+  chronoBody: { flex: 1, paddingBottom: 16, paddingLeft: 6 },
+  chronoTitle: { fontSize: 14, fontWeight: '600', color: '#111827' },
+  chronoDetail: { fontWeight: '400', color: '#374151' },
+  chronoMeta: { fontSize: 12, color: '#6B7280', marginTop: 2 },
 
   // Preuves
   proofBlock: { marginBottom: 16 },
