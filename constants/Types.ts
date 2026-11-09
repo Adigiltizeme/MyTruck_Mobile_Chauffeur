@@ -57,6 +57,7 @@ export interface Client {
   ville: string;
   email?: string;
   interphone: string;
+  batiment?: string;
   etage?: string;
   typeAdresse?: string;
   ascenseur?: boolean;

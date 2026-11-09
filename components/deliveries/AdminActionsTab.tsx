@@ -15,12 +15,12 @@ import {
   Alert,
   Modal,
   TextInput,
-  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { Commande, StatutCommande, StatutLivraison } from '../../constants/Types';
 import commandesService, { type ChauffeurOption } from '../../services/commandes.service';
 import { LiveTrackingMap } from './LiveTrackingMap';
+import { shareTrackingWithRecipient } from '../../utils/share-tracking';
 
 const STATUTS_COMMANDE: StatutCommande[] = ['En attente', 'Confirmée', 'Modifiée', 'Annulée'];
 const STATUTS_LIVRAISON: StatutLivraison[] = [
@@ -179,21 +179,7 @@ export const AdminActionsTab: React.FC<AdminActionsTabProps> = ({ commande, onCh
   const shareTracking = async () => {
     setBusy(true);
     try {
-      const res = await commandesService.getTrackingShareLink(commande.id);
-      if (!res.success || !res.data?.url) {
-        Alert.alert('Erreur', res.error || 'Impossible de générer le lien de suivi');
-        return;
-      }
-      const adresse = commande.client?.adresseLigne1;
-      const lignes = [
-        `📦 Commande : ${commande.numeroCommande}`,
-        commande.livraison?.creneau ? `🕐 Créneau : ${commande.livraison.creneau}` : null,
-        adresse ? `📍 Livraison : ${adresse}` : null,
-        '',
-        'Suivez en temps réel :',
-        res.data.url,
-      ].filter(l => l !== null).join('\n');
-      await Share.share({ message: lignes, title: `Suivi livraison ${commande.numeroCommande}` });
+      await shareTrackingWithRecipient(commande);
     } finally {
       setBusy(false);
     }
@@ -290,7 +276,7 @@ export const AdminActionsTab: React.FC<AdminActionsTabProps> = ({ commande, onCh
           {!STATUTS_TERMINAUX.includes(commande.statutLivraison) && (
             <TouchableOpacity style={styles.secondaryButton} onPress={shareTracking} disabled={busy}>
               <Ionicons name="share-social-outline" size={16} color="#4338CA" />
-              <Text style={styles.secondaryButtonText}>Partager le suivi au client</Text>
+              <Text style={styles.secondaryButtonText}>Envoyer le suivi au client</Text>
             </TouchableOpacity>
           )}
         </View>

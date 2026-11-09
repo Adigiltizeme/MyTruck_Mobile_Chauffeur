@@ -1,6 +1,6 @@
 /**
  * DeliveryDetails - Détails expandable commande
- * 6 onglets : Actions | Informations | Conditions spéciales | Photos articles | Photos commentaires | Chronologie
+ * Onglets : Actions | Informations, puis selon contenu : Conditions spéciales | Photos articles | Preuves
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -31,62 +31,80 @@ import SignatureCanvas from 'react-native-signature-canvas';
 import { callPhone, openMaps } from '../../utils/contact-links';
 import { isAdminRole } from '../../shared/utils/role-helpers';
 import { AdminActionsTab } from './AdminActionsTab';
+import { shareTrackingWithRecipient } from '../../utils/share-tracking';
 
-type TabType = 'info' | 'conditions' | 'photos-articles' | 'photos-comments' | 'chronologie' | 'actions';
+type TabType = 'info' | 'conditions' | 'photos-articles' | 'preuves' | 'actions';
 
 interface DeliveryDetailsProps {
   commande: Commande;
   onStatusChanged?: () => void;
 }
 
+// Photos prises par le chauffeur (hors photos articles du magasin et photos de rapport)
+const PROOF_ENLEVEMENT_TYPES: string[] = ['ENLEVEMENT'];
+const PROOF_LIVRAISON_TYPES: string[] = ['PREUVE_LIVRAISON', 'LIVRAISON'];
+
+/** Conditions physiques de la livraison (source unique : onglet + visibilité de l'onglet). */
+const getConditions = (commande: Commande): { label: string; value: string }[] => {
+  const conditions: { label: string; value: string }[] = [];
+  if (commande.rueInaccessible)      conditions.push({ label: '🚧 Rue inaccessible',      value: 'Oui' });
+  if (commande.hasStairs)            conditions.push({ label: '🪜 Escaliers',              value: commande.stairCount ? `${commande.stairCount} volée(s)` : 'Oui' });
+  if (commande.deliveryToUpperFloor) conditions.push({ label: '⬆️ Livraison à l\'étage',  value: 'Oui' });
+  if (commande.isDuplex)             conditions.push({ label: '🏠 Duplex',                 value: 'Oui' });
+  if (commande.needsAssembly)        conditions.push({ label: '🔧 Montage requis',          value: 'Oui' });
+  if (commande.paletteComplete)      conditions.push({ label: '📦 Palette complète',        value: 'Oui' });
+  if (commande.parkingDistance)      conditions.push({ label: '🅿️ Distance parking',        value: `${commande.parkingDistance} m` });
+  return conditions;
+};
+
+const hasCessionInfo = (commande: Commande) =>
+  commande.type === 'INTER_MAGASIN' && (!!commande.motifCession || !!commande.prioriteCession);
+
+const hasPreuves = (commande: Commande) => {
+  const extra = commande as any;
+  const counts = extra._count || {};
+  return (commande.photos || []).some(p => [...PROOF_ENLEVEMENT_TYPES, ...PROOF_LIVRAISON_TYPES].includes(p.type))
+    || !!commande.signatureClient
+    || (extra.rapportsEnlevement?.length ?? 0) > 0
+    || (extra.rapportsLivraison?.length ?? 0) > 0
+    || (counts.rapportsEnlevement ?? 0) > 0
+    || (counts.rapportsLivraison ?? 0) > 0;
+};
+
 export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onStatusChanged }) => {
   const { user } = useAuth();
   const isAdmin = isAdminRole(user?.role);
   const [activeTab, setActiveTab] = useState<TabType>('actions');
 
+  // Onglets secondaires affichés seulement s'ils ont du contenu
+  const tabs = (
+    [
+      { key: 'actions', label: 'Actions', icon: 'flash-outline', show: true },
+      { key: 'info', label: 'Informations', icon: 'information-circle-outline', show: true },
+      { key: 'conditions', label: 'Conditions spéciales', icon: 'warning-outline', show: getConditions(commande).length > 0 || hasCessionInfo(commande) },
+      { key: 'photos-articles', label: 'Photos articles', icon: 'camera-outline', show: (commande.photos || []).some(p => p.type === 'ARTICLE') },
+      { key: 'preuves', label: 'Preuves', icon: 'images-outline', show: hasPreuves(commande) },
+    ] as { key: TabType; label: string; icon: string; show: boolean }[]
+  ).filter(t => t.show);
+  const currentTab: TabType = tabs.some(t => t.key === activeTab) ? activeTab : 'actions';
+
   return (
     <View style={styles.container}>
-      {/* En-tête avec statuts */}
-      {/* <View style={styles.header}>
-        <Text style={styles.headerTitle}>Commande #{commande.numeroCommande}</Text>
-        <View style={styles.badgesContainer}>
-          <View style={[styles.badge, { backgroundColor: statutCmdStyle.bg }]}>
-            <Text style={[styles.badgeText, { color: statutCmdStyle.text }]}>
-              {commande.statutCommande}
-            </Text>
-          </View>
-          <View style={[styles.badge, { backgroundColor: statutLivStyle.bg }]}>
-            <Text style={[styles.badgeText, { color: statutLivStyle.text }]}>
-              {commande.statutLivraison}
-            </Text>
-          </View>
-        </View>
-      </View> */}
-
       {/* Onglets */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsScroll}>
         <View style={styles.tabsContainer}>
-          {(
-            [
-              { key: 'actions', label: 'Actions', icon: 'flash-outline' },
-              { key: 'info', label: 'Informations', icon: 'information-circle-outline' },
-              { key: 'conditions', label: 'Conditions spéciales', icon: 'warning-outline' },
-              { key: 'photos-articles', label: 'Photos articles', icon: 'camera-outline' },
-              { key: 'photos-comments', label: 'Photos commentaires', icon: 'chatbubble-outline' },
-              { key: 'chronologie', label: 'Chronologie', icon: 'time-outline' },
-            ] as { key: TabType; label: string; icon: string }[]
-          ).map((tab) => (
+          {tabs.map((tab) => (
             <TouchableOpacity
               key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+              style={[styles.tab, currentTab === tab.key && styles.tabActive]}
               onPress={() => setActiveTab(tab.key)}
             >
               <Ionicons
                 name={tab.icon as any}
                 size={18}
-                color={activeTab === tab.key ? '#3B82F6' : '#6B7280'}
+                color={currentTab === tab.key ? '#3B82F6' : '#6B7280'}
               />
-              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              <Text style={[styles.tabText, currentTab === tab.key && styles.tabTextActive]}>
                 {tab.label}
               </Text>
             </TouchableOpacity>
@@ -96,12 +114,11 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
 
       {/* Contenu selon onglet actif */}
       <View style={styles.content}>
-        {activeTab === 'info'             && <InfoTab commande={commande} />}
-        {activeTab === 'conditions'       && <ConditionsTab commande={commande} />}
-        {activeTab === 'photos-articles'  && <PhotosArticlesTab commande={commande} />}
-        {activeTab === 'photos-comments'  && <PhotosCommentsTab commande={commande} onStatusChanged={onStatusChanged} />}
-        {activeTab === 'chronologie'      && <ChronologieTab commande={commande} />}
-        {activeTab === 'actions' && (isAdmin
+        {currentTab === 'info'             && <InfoTab commande={commande} />}
+        {currentTab === 'conditions'       && <ConditionsTab commande={commande} />}
+        {currentTab === 'photos-articles'  && <PhotosArticlesTab commande={commande} />}
+        {currentTab === 'preuves'          && <PreuvesTab commande={commande} onStatusChanged={onStatusChanged} />}
+        {currentTab === 'actions' && (isAdmin
           ? <AdminActionsTab commande={commande} onChanged={onStatusChanged} />
           : <ActionsTab commande={commande} onStatusChanged={onStatusChanged} />)}
       </View>
@@ -109,215 +126,179 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
   );
 };
 
-const PhoneValue: React.FC<{ phone?: string | null }> = ({ phone }) =>
-  phone ? (
-    <TouchableOpacity style={styles.pressableValue} onPress={() => callPhone(phone)} activeOpacity={0.6}>
-      <Text style={[styles.infoValue, styles.phoneLink]}>{'📞 ' + phone}</Text>
-    </TouchableOpacity>
-  ) : (
-    <Text style={styles.infoValue}>N/A</Text>
-  );
+// ─── Onglet Informations : l'essentiel en un coup d'œil ────────────────────
 
-const AddressValue: React.FC<{ label?: string | null; navigateTo?: string }> = ({ label, navigateTo }) =>
-  label ? (
-    <TouchableOpacity style={styles.pressableValue} onPress={() => openMaps(navigateTo || label)} activeOpacity={0.6}>
-      <Text style={[styles.infoValue, styles.addressLink]}>{'📍 ' + label}</Text>
-    </TouchableOpacity>
-  ) : (
-    <Text style={styles.infoValue}>N/A</Text>
-  );
+const joinAddress = (...parts: (string | null | undefined)[]) => parts.filter(Boolean).join(' ');
 
-// ─── Bloc magasin réutilisable ─────────────────────────────────────────────
-const MagasinBlock: React.FC<{ titre: string; magasin?: Commande['magasin']; vendeur?: string }> = ({ titre, magasin, vendeur }) => {
-  const adresse = magasin?.adresse
-    ? (magasin.codePostal && magasin.ville
-        ? `${magasin.adresse}, ${magasin.codePostal} ${magasin.ville}`
-        : magasin.adresse)
-    : '';
+const Chip: React.FC<{ icon: string; text: string; strong?: boolean }> = ({ icon, text, strong }) => (
+  <View style={[styles.ciChip, strong && styles.ciChipStrong]}>
+    <Ionicons name={icon as any} size={14} color={strong ? '#92400E' : '#1E3A8A'} />
+    <Text style={[styles.ciChipText, strong && styles.ciChipTextStrong]}>{text}</Text>
+  </View>
+);
 
+/** Carte d'une étape : adresse et téléphone cliquables, boutons Itinéraire / Appeler. */
+const StopCard: React.FC<{
+  step: string;
+  kind: string;
+  icon: string;
+  name: string;
+  addressLine?: string;
+  addressCity?: string;
+  phone?: string | null;
+  phone2?: string | null;
+  contact?: string;
+  children?: React.ReactNode;
+}> = ({ step, kind, icon, name, addressLine, addressCity, phone, phone2, contact, children }) => {
+  const destination = joinAddress(addressLine, addressCity);
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{titre}</Text>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Nom:</Text>
-        <Text style={styles.infoValue}>{magasin?.nom || 'N/A'}</Text>
+    <View style={styles.ciCard}>
+      <View style={styles.ciCardHead}>
+        <Text style={styles.ciStep}>{step}</Text>
+        <Text style={styles.ciKind}>{kind}</Text>
       </View>
-      {vendeur ? (
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Vendeur:</Text>
-          <Text style={styles.infoValue}>{vendeur}</Text>
+      <View style={styles.ciBody}>
+        <Ionicons name={icon as any} size={26} color="#1E3A8A" />
+        <View style={styles.ciBodyText}>
+          <Text style={styles.ciName}>{name}</Text>
+          {!!destination && (
+            <TouchableOpacity onPress={() => openMaps(destination)} activeOpacity={0.6}>
+              {!!addressLine && <Text style={styles.ciAddress}>{addressLine}</Text>}
+              {!!addressCity && <Text style={styles.ciAddress}>{addressCity}</Text>}
+            </TouchableOpacity>
+          )}
+          {!!phone && (
+            <TouchableOpacity onPress={() => callPhone(phone)} activeOpacity={0.6}>
+              <Text style={styles.ciPhone}>{(contact ? contact + ' · ' : '') + phone}</Text>
+            </TouchableOpacity>
+          )}
+          {!phone && !!contact && <Text style={styles.ciMuted}>{contact}</Text>}
+          {children}
         </View>
-      ) : null}
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Téléphone:</Text>
-        <PhoneValue phone={magasin?.telephone} />
       </View>
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>Adresse:</Text>
-        <AddressValue label={adresse} />
+      <View style={styles.ciButtons}>
+        <TouchableOpacity style={[styles.ciBtnPrimary, !destination && styles.ciBtnDisabled]} onPress={() => openMaps(destination)} disabled={!destination}>
+          <Ionicons name="navigate" size={16} color="#FFFFFF" />
+          <Text style={styles.ciBtnPrimaryText}>Itinéraire</Text>
+        </TouchableOpacity>
+        {!!phone && (
+          <TouchableOpacity style={styles.ciBtnSecondary} onPress={() => callPhone(phone)}>
+            <Ionicons name="call" size={16} color="#1E3A8A" />
+            <Text style={styles.ciBtnSecondaryText}>Appeler</Text>
+          </TouchableOpacity>
+        )}
+        {!!phone2 && (
+          <TouchableOpacity style={styles.ciBtnSecondary} onPress={() => callPhone(phone2)}>
+            <Ionicons name="call-outline" size={16} color="#1E3A8A" />
+            <Text style={styles.ciBtnSecondaryText}>Tél. 2</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 };
 
-// ─── Onglet Informations ───────────────────────────────────────────────────
+const MagasinStop: React.FC<{ step: string; kind: string; magasin?: Commande['magasin']; contact?: string }> = ({ step, kind, magasin, contact }) => (
+  <StopCard
+    step={step}
+    kind={kind}
+    icon="storefront-outline"
+    name={magasin?.nom || 'Magasin'}
+    addressLine={magasin?.adresse}
+    addressCity={joinAddress(magasin?.codePostal, magasin?.ville)}
+    phone={magasin?.telephone}
+    contact={contact}
+  />
+);
+
 const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
   const isCession = commande.type === 'INTER_MAGASIN';
+  const client = commande.client;
+  const article = commande.articles?.[0];
+  const dimensions = Array.isArray(article?.dimensions) ? article.dimensions : [];
+  const autres = article?.autresArticles ?? 0;
+  const dateLabel = commande.dateLivraison
+    ? format(new Date(commande.dateLivraison), 'EEE d MMM', { locale: fr })
+    : '';
 
   return (
     <ScrollView style={styles.tabContent}>
+      {/* Quand et avec quoi */}
+      <View style={styles.ciChipsRow}>
+        <Chip icon="calendar-outline" text={[dateLabel, commande.livraison?.creneau].filter(Boolean).join(' · ') || 'Date à définir'} />
+        {!!commande.livraison?.vehicule && <Chip icon="cube-outline" text={commande.livraison.vehicule} />}
+        <Chip icon="people-outline" text={`${commande.livraison?.equipiers ?? 0} équipier(s)`} />
+      </View>
+
       {isCession ? (
         <>
-          {/* Cession : Magasin cédant (origine) */}
-          <MagasinBlock
-            titre="Magasin cédant (origine)"
-            magasin={commande.magasin}
-            vendeur={commande.prenomVendeur || commande.magasin?.manager}
-          />
-
-          {/* Cession : Magasin demandeur (destination) */}
-          <MagasinBlock
-            titre="Magasin demandeur (destination)"
-            magasin={commande.magasinDestination}
-            vendeur={commande.magasinDestination?.manager}
-          />
+          <MagasinStop step="01" kind="RETRAIT · MAGASIN CÉDANT" magasin={commande.magasin} contact={commande.prenomVendeur || commande.magasin?.manager} />
+          <MagasinStop step="02" kind="LIVRAISON · MAGASIN DEMANDEUR" magasin={commande.magasinDestination} contact={commande.magasinDestination?.manager} />
         </>
       ) : (
         <>
-          {/* Commande normale : Magasin */}
-          <MagasinBlock
-            titre="Magasin"
-            magasin={commande.magasin}
-            vendeur={commande.prenomVendeur || commande.magasin?.manager}
-          />
-
-          {/* Commande normale : Client */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Client</Text>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Nom:</Text>
-              <Text style={styles.infoValue}>
-                {commande.client ? `${commande.client.nom} ${commande.client.prenom}` : 'N/A'}
-              </Text>
+          <MagasinStop step="01" kind="RETRAIT · MAGASIN" magasin={commande.magasin} contact={commande.prenomVendeur || commande.magasin?.manager} />
+          <StopCard
+            step="02"
+            kind="LIVRAISON · CLIENT"
+            icon="home-outline"
+            name={client ? [client.prenom, client.nom].filter(Boolean).join(' ') : 'Client'}
+            addressLine={joinAddress(client?.adresseLigne1, client?.adresseLigne2)}
+            addressCity={joinAddress(client?.codePostal, client?.ville)}
+            phone={client?.telephone}
+            phone2={client?.telephoneSecondaire}
+          >
+            <View style={styles.ciChipsRow}>
+              <Chip icon="keypad-outline" text={`Code : ${client?.interphone || 'non renseigné'}`} strong={!!client?.interphone} />
+              {!!client?.batiment && <Chip icon="business-outline" text={`Bât. ${client.batiment}`} />}
+              {!!client?.etage && <Chip icon="layers-outline" text={`Étage ${client.etage}`} />}
+              <Chip icon="swap-vertical-outline" text={`Ascenseur : ${client?.ascenseur ? 'oui' : 'non'}`} />
             </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Téléphone:</Text>
-              <PhoneValue phone={commande.client?.telephone} />
-            </View>
-            {!!commande.client?.telephoneSecondaire && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Tél. 2:</Text>
-                <PhoneValue phone={commande.client.telephoneSecondaire} />
-              </View>
-            )}
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Adresse:</Text>
-              <AddressValue
-                label={commande.client?.adresseLigne1}
-                navigateTo={[commande.client?.adresseLigne1, commande.client?.adresseLigne2, commande.client?.codePostal, commande.client?.ville]
-                  .filter(Boolean).join(' ')}
-              />
-            </View>
-            {!!commande.client?.interphone && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Interphone/Code:</Text>
-                <Text style={styles.infoValue}>{commande.client.interphone}</Text>
-              </View>
-            )}
-            {!!commande.client?.etage && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Étage:</Text>
-                <Text style={styles.infoValue}>{commande.client.etage}</Text>
-              </View>
-            )}
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Ascenseur:</Text>
-              <Text style={styles.infoValue}>{commande.client?.ascenseur ? 'Oui' : 'Non'}</Text>
-            </View>
-          </View>
+          </StopCard>
         </>
       )}
 
-      {/* Livraison / Transport (commun) */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{isCession ? 'Transport' : 'Livraison'}</Text>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Date:</Text>
-          <Text style={styles.infoValue}>
-            {commande.dateLivraison
-              ? format(new Date(commande.dateLivraison), 'dd/MM/yyyy')
-              : 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Créneau:</Text>
-          <Text style={styles.infoValue}>{commande.livraison?.creneau || 'N/A'}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Véhicule:</Text>
-          <Text style={styles.infoValue}>{commande.livraison?.vehicule || 'N/A'}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Équipiers:</Text>
-          <Text style={styles.infoValue}>{String(commande.livraison?.equipiers ?? 0)}</Text>
-        </View>
-      </View>
-
-      {/* Articles (commun) */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Articles</Text>
-        {commande.articles && commande.articles.length > 0 && Array.isArray(commande.articles[0].dimensions) ? (
-          commande.articles[0].dimensions.map((dim, index) => (
-            <View key={index} style={styles.articleCard}>
-              <Text style={styles.articleTitle}>
-                {index === 0 ? '📦 [Article le plus grand]' : '⚖️ [Article le plus lourd]'}
-                {dim.quantite > 1 ? ` (x${dim.quantite})` : ''}
-              </Text>
-              <View style={styles.dimensionsRow}>
-                <Text style={styles.dimensionText}>{'Longueur: ' + String(dim.longueur || 0) + ' cm'}</Text>
-                <Text style={styles.dimensionText}>{'Largeur: ' + String(dim.largeur || 0) + ' cm'}</Text>
-              </View>
-              <View style={styles.dimensionsRow}>
-                <Text style={styles.dimensionText}>{'Hauteur: ' + String(dim.hauteur || 0) + ' cm'}</Text>
-                <Text style={styles.dimensionText}>{'Poids: ' + String(dim.poids || 0) + ' kg'}</Text>
-              </View>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.noData}>Aucun article avec dimensions</Text>
-        )}
-        {(commande.articles?.[0]?.autresArticles ?? 0) > 0 && (
-          <Text style={styles.autresArticles}>
-            {'Dont ' + String(commande.articles![0].autresArticles) + ' autre(s) article(s)'}
-          </Text>
-        )}
-        <Text style={styles.totalArticles}>
-          {'Nombre total: ' + String(commande.articles?.[0]?.nombre || 0)}
+      {/* Articles */}
+      <View style={styles.ciCard}>
+        <Text style={styles.ciKind}>
+          {`ARTICLES · ${article?.nombre || 0}` + (autres > 0 ? ` (dont ${autres} autre(s))` : '')}
         </Text>
+        {dimensions.map((dim, index) => (
+          <View key={index} style={styles.ciArticleRow}>
+            <Text style={styles.ciArticleLabel}>
+              {(index === 0 ? 'Le plus grand' : 'Le plus lourd') + (dim.quantite > 1 ? ` ×${dim.quantite}` : '')}
+            </Text>
+            <Text style={styles.ciArticleDims}>
+              {`${dim.longueur || 0}×${dim.largeur || 0}×${dim.hauteur || 0} cm · ${dim.poids || 0} kg`}
+            </Text>
+          </View>
+        ))}
+        {!!article?.details && <Text style={styles.ciMuted}>{article.details}</Text>}
+        {!!article?.canBeTilted && <Text style={styles.ciMuted}>Peut être couché</Text>}
       </View>
 
-      {/* Chauffeurs (commun) */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Chauffeur(s)</Text>
-        {commande.chauffeurs && commande.chauffeurs.length > 0 ? (
-          commande.chauffeurs.map((chauffeur) => (
-            <View key={chauffeur.id} style={styles.chauffeurCard}>
-              <Text style={styles.chauffeurName}>
-                {[chauffeur.prenom, chauffeur.nom].filter(Boolean).join(' ') || 'Chauffeur'}
-              </Text>
-              {!!chauffeur.telephone && <PhoneValue phone={chauffeur.telephone} />}
-            </View>
-          ))
-        ) : (
-          <Text style={styles.noData}>Aucun chauffeur assigné</Text>
-        )}
-      </View>
-
-      {/* Remarques (commun) */}
+      {/* Remarques */}
       {!!commande.livraison?.remarques && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Remarques</Text>
-          <Text style={styles.infoValue}>{commande.livraison.remarques}</Text>
+        <View style={[styles.ciCard, styles.ciRemarques]}>
+          <Text style={styles.ciKind}>REMARQUES</Text>
+          <Text style={styles.ciRemarquesText}>{commande.livraison.remarques}</Text>
+        </View>
+      )}
+
+      {/* Équipe */}
+      {commande.chauffeurs && commande.chauffeurs.length > 0 && (
+        <View style={styles.ciCard}>
+          <Text style={styles.ciKind}>ÉQUIPE</Text>
+          {commande.chauffeurs.map((chauffeur) => {
+            const nom = [chauffeur.prenom, chauffeur.nom].filter(Boolean).join(' ') || 'Chauffeur';
+            return chauffeur.telephone ? (
+              <TouchableOpacity key={chauffeur.id} onPress={() => callPhone(chauffeur.telephone)} activeOpacity={0.6}>
+                <Text style={styles.ciPhone}>{nom + ' · ' + chauffeur.telephone}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text key={chauffeur.id} style={styles.ciMuted}>{nom}</Text>
+            );
+          })}
         </View>
       )}
     </ScrollView>
@@ -326,21 +307,11 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
 
 // ─── Onglet Conditions spéciales ──────────────────────────────────────────
 const ConditionsTab: React.FC<{ commande: Commande }> = ({ commande }) => {
-  const isCession = commande.type === 'INTER_MAGASIN';
-
-  const conditions: { label: string; value: string }[] = [];
-  if (commande.rueInaccessible)      conditions.push({ label: '🚧 Rue inaccessible',      value: 'Oui' });
-  if (commande.hasStairs)            conditions.push({ label: '🪜 Escaliers',              value: commande.stairCount ? `${commande.stairCount} volée(s)` : 'Oui' });
-  if (commande.deliveryToUpperFloor) conditions.push({ label: '⬆️ Livraison à l\'étage',  value: 'Oui' });
-  if (commande.isDuplex)             conditions.push({ label: '🏠 Duplex',                 value: 'Oui' });
-  if (commande.needsAssembly)        conditions.push({ label: '🔧 Montage requis',          value: 'Oui' });
-  if (commande.paletteComplete)      conditions.push({ label: '📦 Palette complète',        value: 'Oui' });
-  if (commande.parkingDistance)      conditions.push({ label: '🅿️ Distance parking',        value: `${commande.parkingDistance} m` });
-
-  const hasCessionInfo = isCession && (!!commande.motifCession || !!commande.prioriteCession);
+  const conditions = getConditions(commande);
+  const showCessionInfo = hasCessionInfo(commande);
   const hasPhysicalConditions = conditions.length > 0;
 
-  if (!hasCessionInfo && !hasPhysicalConditions) {
+  if (!showCessionInfo && !hasPhysicalConditions) {
     return (
       <View style={styles.tabContent}>
         <Text style={styles.noData}>Aucune condition spéciale</Text>
@@ -351,7 +322,7 @@ const ConditionsTab: React.FC<{ commande: Commande }> = ({ commande }) => {
   return (
     <ScrollView style={styles.tabContent}>
       {/* Informations cession (INTER_MAGASIN uniquement) */}
-      {hasCessionInfo && (
+      {showCessionInfo && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informations cession</Text>
           {!!commande.motifCession && (
@@ -432,9 +403,9 @@ const PhotosArticlesTab: React.FC<{ commande: Commande }> = ({ commande }) => {
   );
 };
 
-// ─── Onglet Photos commentaires ───────────────────────────────────────────
-// Calqué sur PhotosCommentaires.tsx (web) : appel getRapports → affiche message + photos par rapport
-const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }> = ({ commande, onStatusChanged }) => {
+// ─── Onglet Preuves ───────────────────────────────────────────────────────
+// Photos prises par le chauffeur, signature client, puis rapports (comme PhotosCommentaires.tsx web)
+const PreuvesTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }> = ({ commande, onStatusChanged }) => {
   type RapportsData = {
     enlevement: any[];
     livraison: any[];
@@ -651,22 +622,39 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
     );
   }
 
-  const hasRapports = rapports && (rapports.enlevement.length > 0 || rapports.livraison.length > 0);
+  const enlevementPhotos = (commande.photos || []).filter(p => PROOF_ENLEVEMENT_TYPES.includes(p.type));
+  const livraisonPhotos = (commande.photos || []).filter(p => PROOF_LIVRAISON_TYPES.includes(p.type));
+  const hasRapports = !!rapports && (rapports.enlevement.length > 0 || rapports.livraison.length > 0);
 
-  if (!hasRapports) {
-    return (
-      <View style={styles.tabContent}>
-        <Text style={styles.noData}>Aucun rapport de commentaire.</Text>
-        <Text style={[styles.noData, { marginTop: 6, fontSize: 12 }]}>
-          Créez un rapport dans l'onglet "Actions" pour qu'il apparaisse ici.
-        </Text>
+  const renderProofGrid = (title: string, photos: { id?: string; url: string }[]) => (
+    <View style={styles.proofBlock}>
+      <Text style={styles.photoSectionTitle}>{`${title} (${photos.length})`}</Text>
+      <View style={styles.preuvePhotoGrid}>
+        {photos.map((photo, idx) => (
+          <TouchableOpacity key={photo.id || idx} onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+            <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+          </TouchableOpacity>
+        ))}
       </View>
-    );
-  }
+    </View>
+  );
 
   return (
     <>
       <ScrollView style={styles.tabContent}>
+        {enlevementPhotos.length > 0 && renderProofGrid("Photos d'enlèvement", enlevementPhotos)}
+        {livraisonPhotos.length > 0 && renderProofGrid('Photos de livraison', livraisonPhotos)}
+        {!!commande.signatureClient && (
+          <View style={styles.proofBlock}>
+            <Text style={styles.photoSectionTitle}>Signature du client</Text>
+            <TouchableOpacity onPress={() => setViewerUrl(commande.signatureClient!)} activeOpacity={0.85}>
+              <Image source={{ uri: commande.signatureClient }} style={styles.signatureDisplayImage} resizeMode="contain" />
+            </TouchableOpacity>
+          </View>
+        )}
+        {!hasRapports && enlevementPhotos.length === 0 && livraisonPhotos.length === 0 && !commande.signatureClient && (
+          <Text style={styles.noData}>Aucune preuve pour le moment</Text>
+        )}
 
         {rapports?.enlevement?.map((rapport: any, idx: number) => (
           <React.Fragment key={rapport.id || `enlev-${idx}`}>
@@ -726,13 +714,6 @@ const PhotosCommentsTab: React.FC<{ commande: Commande; onStatusChanged?: () => 
     </>
   );
 };
-
-// ─── Onglet Chronologie ───────────────────────────────────────────────────
-const ChronologieTab: React.FC<{ commande: Commande }> = () => (
-  <View style={styles.tabContent}>
-    <Text style={styles.noData}>Chronologie à venir</Text>
-  </View>
-);
 
 // ─── Onglet Actions — Timeline + GPS + Rapports + Preuves ────────────────
 
@@ -833,6 +814,16 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const [deletingProofPhotoUrl, setDeletingProofPhotoUrl] = useState<string | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [sharingTracking, setSharingTracking] = useState(false);
+
+  const handleShareTracking = useCallback(async () => {
+    setSharingTracking(true);
+    try {
+      await shareTrackingWithRecipient(commande);
+    } finally {
+      setSharingTracking(false);
+    }
+  }, [commande]);
 
   // ── Photos rapport (URLs Cloudinary par type) ──
   const [rapportPhotos, setRapportPhotos] = useState<Record<'ENLEVEMENT' | 'LIVRAISON', Array<{ url: string; filename: string }>>>({
@@ -1356,6 +1347,14 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
                   </TouchableOpacity>
                 )}
               </View>
+              {!isCompleted && (
+                <TouchableOpacity style={styles.shareTrackingButton} onPress={handleShareTracking} disabled={sharingTracking}>
+                  {sharingTracking
+                    ? <ActivityIndicator size="small" color="#4338CA" />
+                    : <Ionicons name="share-social-outline" size={15} color="#4338CA" />}
+                  <Text style={styles.shareTrackingText}>Envoyer le suivi au client</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
@@ -1776,14 +1775,14 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
             </View>
           )}
           {/* Photos de preuve + signature côte à côte */}
-          {(commande.photos && commande.photos.filter(p => p.type === 'PREUVE_LIVRAISON').length > 0) || commande.signatureClient ? (
+          {(commande.photos && commande.photos.filter(p => PROOF_LIVRAISON_TYPES.includes(p.type)).length > 0) || commande.signatureClient ? (
             <View style={styles.preuveRowContainer}>
               {/* Grille photos */}
-              {commande.photos && commande.photos.filter(p => p.type === 'PREUVE_LIVRAISON').length > 0 && (
+              {commande.photos && commande.photos.filter(p => PROOF_LIVRAISON_TYPES.includes(p.type)).length > 0 && (
                 <View style={styles.preuvePhotosCol}>
                   <View style={styles.preuvePhotoGrid}>
                     {commande.photos
-                      .filter(p => p.type === 'PREUVE_LIVRAISON')
+                      .filter(p => PROOF_LIVRAISON_TYPES.includes(p.type))
                       .map((photo, idx) => (
                         <View key={photo.id || idx} style={styles.photoWithDelete}>
                           <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
@@ -2121,6 +2120,39 @@ const styles = StyleSheet.create({
   tabContent: {
     padding: 16,
   },
+
+  // Informations compactes
+  ciChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  ciChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
+  ciChipStrong: { backgroundColor: '#FEF3C7' },
+  ciChipText: { fontSize: 13, color: '#1E3A8A', fontWeight: '500' },
+  ciChipTextStrong: { color: '#92400E', fontWeight: '700' },
+  ciCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, marginBottom: 12 },
+  ciCardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  ciStep: { backgroundColor: '#1D4ED8', color: '#FFFFFF', fontWeight: '700', fontSize: 13, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
+  ciKind: { fontSize: 12, fontWeight: '700', color: '#6B7280', letterSpacing: 0.5, marginBottom: 4 },
+  ciBody: { flexDirection: 'row', gap: 12 },
+  ciBodyText: { flex: 1 },
+  ciName: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 2 },
+  ciAddress: { fontSize: 15, color: '#2563EB' },
+  ciPhone: { fontSize: 15, color: '#2563EB', marginTop: 4 },
+  ciMuted: { fontSize: 13, color: '#6B7280', marginTop: 4 },
+  ciButtons: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  ciBtnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#1D4ED8', borderRadius: 10, paddingVertical: 11 },
+  ciBtnDisabled: { opacity: 0.5 },
+  ciBtnPrimaryText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  ciBtnSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#DBEAFE', borderRadius: 10, paddingVertical: 11 },
+  ciBtnSecondaryText: { color: '#1E3A8A', fontWeight: '700', fontSize: 15 },
+  ciArticleRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  ciArticleLabel: { fontSize: 14, color: '#374151' },
+  ciArticleDims: { fontSize: 14, color: '#111827', fontWeight: '600' },
+  ciRemarques: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+  ciRemarquesText: { fontSize: 14, color: '#111827' },
+
+  // Preuves
+  proofBlock: { marginBottom: 16 },
+  shareTrackingButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 10, borderRadius: 8, backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE' },
+  shareTrackingText: { color: '#4338CA', fontWeight: '600', fontSize: 14 },
 
   // Infos
   section: {

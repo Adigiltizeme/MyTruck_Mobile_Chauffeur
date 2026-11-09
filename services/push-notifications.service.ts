@@ -4,9 +4,9 @@
  */
 
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsModule from 'expo-notifications';
 import * as Device from 'expo-device';
-import Constants from 'expo-constants';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from './api.service';
 import { NOTIFICATIONS_ENDPOINTS } from '../constants/API';
@@ -19,6 +19,12 @@ async function forgetOnServer(token: string): Promise<boolean> {
   const res = await apiService.post(NOTIFICATIONS_ENDPOINTS.FORGET_DEVICE, { token });
   return res.success;
 }
+// Expo Go (SDK 53+) n'embarque plus le push distant : y charger expo-notifications lève une erreur
+// au démarrage. Le module n'est donc chargé que dans les builds (développement, preview, production).
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Notifications: typeof NotificationsModule | null = isExpoGo ? null : require('expo-notifications');
+
 // Doit correspondre au channelId envoyé par le backend (push.service.ts)
 export const ANDROID_CHANNEL_ID = 'default';
 
@@ -29,7 +35,7 @@ export interface PushNotificationData {
 }
 
 // Au premier plan : afficher quand même la bannière (sinon iOS/Android la masquent)
-Notifications.setNotificationHandler({
+Notifications?.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -39,7 +45,7 @@ Notifications.setNotificationHandler({
 });
 
 async function ensureAndroidChannel() {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' || !Notifications) return;
   await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
     name: 'Livraisons et messages',
     importance: Notifications.AndroidImportance.MAX,
@@ -55,7 +61,7 @@ export const pushNotificationsService = {
    */
   async register(): Promise<string | null> {
     try {
-      if (!Device.isDevice) return null;
+      if (!Notifications || !Device.isDevice) return null;
       await ensureAndroidChannel();
 
       const current = await Notifications.getPermissionsAsync();
@@ -90,6 +96,26 @@ export const pushNotificationsService = {
       console.warn('⚠️ [PUSH] Enregistrement impossible:', error);
       return null;
     }
+  },
+
+  /**
+   * Ouvre l'écran lié à une notification touchée : app lancée depuis la notification (fermée),
+   * puis toutes les suivantes. Retourne la fonction de désabonnement.
+   */
+  onNotificationOpened(handler: (data: PushNotificationData, id: string) => void): () => void {
+    if (!Notifications) return () => undefined;
+    const handle = (response: NotificationsModule.NotificationResponse) =>
+      handler((response.notification.request.content.data || {}) as PushNotificationData, response.notification.request.identifier);
+
+    // Réponse effacée ensuite pour ne pas la rejouer au prochain lancement normal
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handle(response);
+        Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+      }
+    });
+    const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+    return () => subscription.remove();
   },
 
   /** Déconnexion : l'appareil ne doit plus recevoir de push pour ce compte, même si le réseau manque. */

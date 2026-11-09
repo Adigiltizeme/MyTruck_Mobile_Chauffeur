@@ -59,7 +59,6 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import * as Notifications from 'expo-notifications';
 
 // Contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -67,7 +66,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 // Screens
 import LoginScreen from './screens/LoginScreen';
 import CommandeDetailScreen from './screens/CommandeDetailScreen';
-import type { PushNotificationData } from './services/push-notifications.service';
+import pushNotificationsService, { type PushNotificationData } from './services/push-notifications.service';
 
 // Navigation
 import BottomTabsNavigator from './navigation/BottomTabsNavigator';
@@ -108,24 +107,11 @@ function AppNavigator() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const handle = (response: Notifications.NotificationResponse) => {
-      const id = response.notification.request.identifier;
+    return pushNotificationsService.onNotificationOpened((data, id) => {
       if (handledIdRef.current === id) return;
       handledIdRef.current = id;
-      const data = (response.notification.request.content.data || {}) as PushNotificationData;
       if (!openFromNotification(data)) pendingRef.current = data;
-    };
-
-    // App lancée en touchant une notification alors qu'elle était fermée.
-    // On efface ensuite cette réponse pour ne pas la rejouer au prochain lancement normal.
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response) {
-        handle(response);
-        Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
-      }
     });
-    const subscription = Notifications.addNotificationResponseReceivedListener(handle);
-    return () => subscription.remove();
   }, [isAuthenticated]);
 
   const handleNavigationReady = () => {
