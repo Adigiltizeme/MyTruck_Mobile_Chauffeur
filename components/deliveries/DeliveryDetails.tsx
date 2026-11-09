@@ -33,7 +33,7 @@ import { isAdminRole } from '../../shared/utils/role-helpers';
 import { AdminActionsTab } from './AdminActionsTab';
 import { shareTrackingWithRecipient } from '../../utils/share-tracking';
 
-type TabType = 'info' | 'conditions' | 'photos-articles' | 'preuves' | 'actions';
+type TabType = 'info' | 'conditions' | 'photos-articles' | 'preuves' | 'rapports' | 'actions';
 
 interface DeliveryDetailsProps {
   commande: Commande;
@@ -60,12 +60,17 @@ const getConditions = (commande: Commande): { label: string; value: string }[] =
 const hasCessionInfo = (commande: Commande) =>
   commande.type === 'INTER_MAGASIN' && (!!commande.motifCession || !!commande.prioriteCession);
 
-const hasPreuves = (commande: Commande) => {
+// Preuves obligatoires : photos d'enlèvement / de livraison et signature du client
+const hasPreuves = (commande: Commande) =>
+  ['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(commande.statutLivraison)
+  || (commande.photos || []).some(p => [...PROOF_ENLEVEMENT_TYPES, ...PROOF_LIVRAISON_TYPES].includes(p.type))
+  || !!commande.signatureClient;
+
+// Rapports facultatifs : ils signalent une réserve à l'enlèvement ou à la livraison
+const hasRapports = (commande: Commande) => {
   const extra = commande as any;
   const counts = extra._count || {};
-  return (commande.photos || []).some(p => [...PROOF_ENLEVEMENT_TYPES, ...PROOF_LIVRAISON_TYPES].includes(p.type))
-    || !!commande.signatureClient
-    || (extra.rapportsEnlevement?.length ?? 0) > 0
+  return (extra.rapportsEnlevement?.length ?? 0) > 0
     || (extra.rapportsLivraison?.length ?? 0) > 0
     || (counts.rapportsEnlevement ?? 0) > 0
     || (counts.rapportsLivraison ?? 0) > 0;
@@ -83,7 +88,8 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
       { key: 'info', label: 'Informations', icon: 'information-circle-outline', show: true },
       { key: 'conditions', label: 'Conditions spéciales', icon: 'warning-outline', show: getConditions(commande).length > 0 || hasCessionInfo(commande) },
       { key: 'photos-articles', label: 'Photos articles', icon: 'camera-outline', show: (commande.photos || []).some(p => p.type === 'ARTICLE') },
-      { key: 'preuves', label: 'Preuves', icon: 'images-outline', show: hasPreuves(commande) },
+      { key: 'preuves', label: 'Preuves', icon: 'checkmark-done-outline', show: hasPreuves(commande) },
+      { key: 'rapports', label: 'Rapports & réserves', icon: 'alert-circle-outline', show: hasRapports(commande) },
     ] as { key: TabType; label: string; icon: string; show: boolean }[]
   ).filter(t => t.show);
   const currentTab: TabType = tabs.some(t => t.key === activeTab) ? activeTab : 'actions';
@@ -118,6 +124,7 @@ export const DeliveryDetails: React.FC<DeliveryDetailsProps> = ({ commande, onSt
         {currentTab === 'conditions'       && <ConditionsTab commande={commande} />}
         {currentTab === 'photos-articles'  && <PhotosArticlesTab commande={commande} />}
         {currentTab === 'preuves'          && <PreuvesTab commande={commande} onStatusChanged={onStatusChanged} />}
+        {currentTab === 'rapports'         && <RapportsTab commande={commande} onStatusChanged={onStatusChanged} />}
         {currentTab === 'actions' && (isAdmin
           ? <AdminActionsTab commande={commande} onChanged={onStatusChanged} />
           : <ActionsTab commande={commande} onStatusChanged={onStatusChanged} />)}
@@ -132,12 +139,12 @@ const joinAddress = (...parts: (string | null | undefined)[]) => parts.filter(Bo
 
 const Chip: React.FC<{ icon: string; text: string; strong?: boolean }> = ({ icon, text, strong }) => (
   <View style={[styles.ciChip, strong && styles.ciChipStrong]}>
-    <Ionicons name={icon as any} size={14} color={strong ? '#92400E' : '#1E3A8A'} />
+    <Ionicons name={icon as any} size={14} color={strong ? '#D97706' : '#6B7280'} />
     <Text style={[styles.ciChipText, strong && styles.ciChipTextStrong]}>{text}</Text>
   </View>
 );
 
-/** Carte d'une étape : adresse et téléphone cliquables, boutons Itinéraire / Appeler. */
+/** Carte d'une étape : l'adresse ouvre la navigation, le téléphone lance l'appel. */
 const StopCard: React.FC<{
   step: string;
   kind: string;
@@ -158,41 +165,27 @@ const StopCard: React.FC<{
         <Text style={styles.ciKind}>{kind}</Text>
       </View>
       <View style={styles.ciBody}>
-        <Ionicons name={icon as any} size={26} color="#1E3A8A" />
+        <Ionicons name={icon as any} size={24} color="#6B7280" />
         <View style={styles.ciBodyText}>
           <Text style={styles.ciName}>{name}</Text>
           {!!destination && (
             <TouchableOpacity onPress={() => openMaps(destination)} activeOpacity={0.6}>
-              {!!addressLine && <Text style={styles.ciAddress}>{addressLine}</Text>}
-              {!!addressCity && <Text style={styles.ciAddress}>{addressCity}</Text>}
+              <Text style={styles.ciAddress}>{'📍 ' + [addressLine, addressCity].filter(Boolean).join(', ')}</Text>
             </TouchableOpacity>
           )}
           {!!phone && (
             <TouchableOpacity onPress={() => callPhone(phone)} activeOpacity={0.6}>
-              <Text style={styles.ciPhone}>{(contact ? contact + ' · ' : '') + phone}</Text>
+              <Text style={styles.ciPhone}>{'📞 ' + (contact ? contact + ' · ' : '') + phone}</Text>
+            </TouchableOpacity>
+          )}
+          {!!phone2 && (
+            <TouchableOpacity onPress={() => callPhone(phone2)} activeOpacity={0.6}>
+              <Text style={styles.ciPhone}>{'📞 ' + phone2}</Text>
             </TouchableOpacity>
           )}
           {!phone && !!contact && <Text style={styles.ciMuted}>{contact}</Text>}
           {children}
         </View>
-      </View>
-      <View style={styles.ciButtons}>
-        <TouchableOpacity style={[styles.ciBtnPrimary, !destination && styles.ciBtnDisabled]} onPress={() => openMaps(destination)} disabled={!destination}>
-          <Ionicons name="navigate" size={16} color="#FFFFFF" />
-          <Text style={styles.ciBtnPrimaryText}>Itinéraire</Text>
-        </TouchableOpacity>
-        {!!phone && (
-          <TouchableOpacity style={styles.ciBtnSecondary} onPress={() => callPhone(phone)}>
-            <Ionicons name="call" size={16} color="#1E3A8A" />
-            <Text style={styles.ciBtnSecondaryText}>Appeler</Text>
-          </TouchableOpacity>
-        )}
-        {!!phone2 && (
-          <TouchableOpacity style={styles.ciBtnSecondary} onPress={() => callPhone(phone2)}>
-            <Ionicons name="call-outline" size={16} color="#1E3A8A" />
-            <Text style={styles.ciBtnSecondaryText}>Tél. 2</Text>
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -403,9 +396,250 @@ const PhotosArticlesTab: React.FC<{ commande: Commande }> = ({ commande }) => {
   );
 };
 
-// ─── Onglet Preuves ───────────────────────────────────────────────────────
-// Photos prises par le chauffeur, signature client, puis rapports (comme PhotosCommentaires.tsx web)
+// ─── Onglet Preuves (obligatoires) ────────────────────────────────────────
+// Photos d'enlèvement, photos et signature de livraison : consultation, ajout, suppression
 const PreuvesTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }> = ({ commande, onStatusChanged }) => {
+  const statut = commande.statutLivraison;
+  const [loadingPhoto, setLoadingPhoto] = useState(false);
+  const [deletingProofPhotoUrl, setDeletingProofPhotoUrl] = useState<string | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const enlevementPhotos = (commande.photos || []).filter(p => PROOF_ENLEVEMENT_TYPES.includes(p.type));
+  const livraisonPhotos = (commande.photos || []).filter(p => PROOF_LIVRAISON_TYPES.includes(p.type));
+
+  // ── Photo : caméra ──
+  const handleTakePhoto = useCallback(async (type: PhotoType) => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission requise', "Veuillez autoriser l'accès à la caméra");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    setLoadingPhoto(true);
+    try {
+      const res = await commandesService.uploadPhoto(commande.id, result.assets[0].uri, type);
+      if (res.success) {
+        Alert.alert('Photo ajoutée', 'La photo a été enregistrée avec succès');
+        onStatusChanged?.();
+      } else {
+        Alert.alert('Erreur', res.error || "Impossible d'ajouter la photo");
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+    } finally {
+      setLoadingPhoto(false);
+    }
+  }, [commande.id, onStatusChanged]);
+
+  // ── Photo : galerie ──
+  const handlePickPhoto = useCallback(async (type: PhotoType) => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission requise', "Veuillez autoriser l'accès à la galerie photo");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+    setLoadingPhoto(true);
+    try {
+      const res = await commandesService.uploadPhoto(commande.id, result.assets[0].uri, type);
+      if (res.success) {
+        Alert.alert('Photo ajoutée', 'La photo a été enregistrée avec succès');
+        onStatusChanged?.();
+      } else {
+        Alert.alert('Erreur', res.error || "Impossible d'ajouter la photo");
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+    } finally {
+      setLoadingPhoto(false);
+    }
+  }, [commande.id, onStatusChanged]);
+
+  // ── Supprimer une preuve de livraison ──
+  const handleDeleteProofPhoto = useCallback((photoUrl: string) => {
+    Alert.alert(
+      'Supprimer la photo',
+      'Êtes-vous sûr de vouloir supprimer cette preuve ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingProofPhotoUrl(photoUrl);
+            try {
+              const res = await commandesService.deletePhoto(commande.id, photoUrl);
+              if (res.success) {
+                onStatusChanged?.();
+              } else {
+                Alert.alert('Erreur', res.error || 'Impossible de supprimer la photo');
+              }
+            } catch (e: any) {
+              Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
+            } finally {
+              setDeletingProofPhotoUrl(null);
+            }
+          },
+        },
+      ]
+    );
+  }, [commande.id, onStatusChanged]);
+
+  return (
+    <ScrollView style={styles.tabContent}>
+      {/* ── Section Photos d'enlèvement (ajout supplémentaire, visible dès ENLEVEE et après) ── */}
+      {(['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(statut) || enlevementPhotos.length > 0) && (
+        <View style={styles.enleveePhotoSection}>
+          <Text style={styles.enleveePhotoTitle}>Preuves d'enlèvement</Text>
+          <Text style={styles.enleveePhotoNote}>
+            Ajoutez d'autres photos si nécessaire.
+          </Text>
+          <View style={styles.photoButtonRow}>
+            <TouchableOpacity
+              style={styles.photoButton}
+              onPress={() => handleTakePhoto('ENLEVEMENT')}
+              disabled={loadingPhoto}
+            >
+              <Ionicons name="camera" size={16} color="#6B7280" />
+              <Text style={styles.photoButtonText}>Caméra</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.photoButton}
+              onPress={() => handlePickPhoto('ENLEVEMENT')}
+              disabled={loadingPhoto}
+            >
+              <Ionicons name="images" size={16} color="#6B7280" />
+              <Text style={styles.photoButtonText}>Galerie</Text>
+            </TouchableOpacity>
+          </View>
+          {loadingPhoto && (
+            <ActivityIndicator size="small" color="#D97706" style={{ marginTop: 6 }} />
+          )}
+          {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').length > 0 && (
+            <View style={styles.preuvePhotoGrid}>
+              {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').map((photo, idx) => (
+                <View key={photo.id || idx} style={styles.photoWithDelete}>
+                  <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                    <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deletePhotoButton}
+                    onPress={() => handleDeleteProofPhoto(photo.url)}
+                    disabled={deletingProofPhotoUrl === photo.url}
+                  >
+                    {deletingProofPhotoUrl === photo.url
+                      ? <ActivityIndicator size="small" color="#FFFFFF" />
+                      : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                    }
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* ── Preuves de livraison (statut LIVREE uniquement) ── */}
+      {(statut === 'LIVREE' || livraisonPhotos.length > 0 || !!commande.signatureClient) && (
+        <View style={styles.preuveSection}>
+          <Text style={styles.preuveSectionTitle}>Preuves de livraison</Text>
+          <Text style={styles.preuveSectionNote}>
+            Ajoutez des photos de confirmation (colis déposé, etc.)
+          </Text>
+          <View style={styles.photoButtonRow}>
+            <TouchableOpacity
+              style={[styles.photoButton, styles.photoButtonGreen]}
+              onPress={() => handleTakePhoto('LIVRAISON')}
+              disabled={loadingPhoto}
+            >
+              <Ionicons name="camera" size={18} color="#059669" />
+              <Text style={[styles.photoButtonText, { color: '#059669' }]}>Prendre une photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.photoButton, styles.photoButtonGreen]}
+              onPress={() => handlePickPhoto('LIVRAISON')}
+              disabled={loadingPhoto}
+            >
+              <Ionicons name="images" size={18} color="#059669" />
+              <Text style={[styles.photoButtonText, { color: '#059669' }]}>Depuis la galerie</Text>
+            </TouchableOpacity>
+          </View>
+          {loadingPhoto && (
+            <View style={{ alignItems: 'center', marginTop: 8 }}>
+              <ActivityIndicator size="small" color="#059669" />
+              <Text style={styles.preuveSectionNote}>Envoi en cours...</Text>
+            </View>
+          )}
+          {/* Photos de preuve + signature côte à côte */}
+          {(commande.photos && commande.photos.filter(p => PROOF_LIVRAISON_TYPES.includes(p.type)).length > 0) || commande.signatureClient ? (
+            <View style={styles.preuveRowContainer}>
+              {/* Grille photos */}
+              {commande.photos && commande.photos.filter(p => PROOF_LIVRAISON_TYPES.includes(p.type)).length > 0 && (
+                <View style={styles.preuvePhotosCol}>
+                  <View style={styles.preuvePhotoGrid}>
+                    {commande.photos
+                      .filter(p => PROOF_LIVRAISON_TYPES.includes(p.type))
+                      .map((photo, idx) => (
+                        <View key={photo.id || idx} style={styles.photoWithDelete}>
+                          <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
+                            <Image
+                              source={{ uri: photo.url }}
+                              style={styles.preuvePhotoItem}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.deletePhotoButton}
+                            onPress={() => handleDeleteProofPhoto(photo.url)}
+                            disabled={deletingProofPhotoUrl === photo.url}
+                          >
+                            {deletingProofPhotoUrl === photo.url
+                              ? <ActivityIndicator size="small" color="#FFFFFF" />
+                              : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
+                            }
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                  </View>
+                </View>
+              )}
+              {/* Signature à droite */}
+              {commande.signatureClient && (
+                <View style={styles.signatureDisplayBlock}>
+                  <Text style={styles.signatureDisplayLabel}>✍️ Signature</Text>
+                  <TouchableOpacity onPress={() => setViewerUrl(commande.signatureClient!)} activeOpacity={0.85}>
+                    <Image
+                      source={{ uri: commande.signatureClient }}
+                      style={styles.signatureDisplayImage}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {!enlevementPhotos.length && !livraisonPhotos.length && !commande.signatureClient
+        && !['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(statut) && (
+        <Text style={styles.noData}>Les preuves sont demandées à l'enlèvement et à la livraison</Text>
+      )}
+      <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
+    </ScrollView>
+  );
+};
+
+// ─── Onglet Rapports & réserves (facultatifs) ─────────────────────────────
+// Calqué sur PhotosCommentaires.tsx (web) : un rapport = une réserve, avec message et photos
+const RapportsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }> = ({ commande, onStatusChanged }) => {
   type RapportsData = {
     enlevement: any[];
     livraison: any[];
@@ -536,7 +770,15 @@ const PreuvesTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
       <View style={{ borderWidth: 1, borderColor, borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
         {/* En-tête */}
         <View style={{ backgroundColor: bgColor, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: borderColor }}>
-          <Text style={{ fontWeight: '700', color: titleColor, fontSize: 14 }}>{title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontWeight: '700', color: titleColor, fontSize: 14 }}>{title}</Text>
+            {/* Comme le backend : un rapport avec message = réserve */}
+            {!!rapport.message && (
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#DC2626', backgroundColor: '#FEF2F2', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+                ⚠️ Réserve
+              </Text>
+            )}
+          </View>
         </View>
 
         <View style={{ padding: 14 }}>
@@ -622,39 +864,12 @@ const PreuvesTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     );
   }
 
-  const enlevementPhotos = (commande.photos || []).filter(p => PROOF_ENLEVEMENT_TYPES.includes(p.type));
-  const livraisonPhotos = (commande.photos || []).filter(p => PROOF_LIVRAISON_TYPES.includes(p.type));
-  const hasRapports = !!rapports && (rapports.enlevement.length > 0 || rapports.livraison.length > 0);
-
-  const renderProofGrid = (title: string, photos: { id?: string; url: string }[]) => (
-    <View style={styles.proofBlock}>
-      <Text style={styles.photoSectionTitle}>{`${title} (${photos.length})`}</Text>
-      <View style={styles.preuvePhotoGrid}>
-        {photos.map((photo, idx) => (
-          <TouchableOpacity key={photo.id || idx} onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
-            <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
+  const hasRapportsData = !!rapports && (rapports.enlevement.length > 0 || rapports.livraison.length > 0);
 
   return (
     <>
       <ScrollView style={styles.tabContent}>
-        {enlevementPhotos.length > 0 && renderProofGrid("Photos d'enlèvement", enlevementPhotos)}
-        {livraisonPhotos.length > 0 && renderProofGrid('Photos de livraison', livraisonPhotos)}
-        {!!commande.signatureClient && (
-          <View style={styles.proofBlock}>
-            <Text style={styles.photoSectionTitle}>Signature du client</Text>
-            <TouchableOpacity onPress={() => setViewerUrl(commande.signatureClient!)} activeOpacity={0.85}>
-              <Image source={{ uri: commande.signatureClient }} style={styles.signatureDisplayImage} resizeMode="contain" />
-            </TouchableOpacity>
-          </View>
-        )}
-        {!hasRapports && enlevementPhotos.length === 0 && livraisonPhotos.length === 0 && !commande.signatureClient && (
-          <Text style={styles.noData}>Aucune preuve pour le moment</Text>
-        )}
+        {!hasRapportsData && <Text style={styles.noData}>Aucun rapport</Text>}
 
         {rapports?.enlevement?.map((rapport: any, idx: number) => (
           <React.Fragment key={rapport.id || `enlev-${idx}`}>
@@ -811,8 +1026,6 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
   const [activeRapportType, setActiveRapportType] = useState<'ENLEVEMENT' | 'LIVRAISON' | null>(null);
   const [rapportMessage, setRapportMessage] = useState('');
   const [loadingRapport, setLoadingRapport] = useState(false);
-  const [loadingPhoto, setLoadingPhoto] = useState(false);
-  const [deletingProofPhotoUrl, setDeletingProofPhotoUrl] = useState<string | null>(null);
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [sharingTracking, setSharingTracking] = useState(false);
 
@@ -1192,92 +1405,6 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
     }
   }, [activeRapportType, rapportMessage, rapportPhotos, commande.id, commande.chauffeurs, onStatusChanged]);
 
-  // ── Photo : caméra ──
-  const handleTakePhoto = useCallback(async (type: PhotoType) => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission requise', "Veuillez autoriser l'accès à la caméra");
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.[0]) return;
-    setLoadingPhoto(true);
-    try {
-      const res = await commandesService.uploadPhoto(commande.id, result.assets[0].uri, type);
-      if (res.success) {
-        Alert.alert('Photo ajoutée', 'La photo a été enregistrée avec succès');
-        onStatusChanged?.();
-      } else {
-        Alert.alert('Erreur', res.error || "Impossible d'ajouter la photo");
-      }
-    } catch (e: any) {
-      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
-    } finally {
-      setLoadingPhoto(false);
-    }
-  }, [commande.id, onStatusChanged]);
-
-  // ── Photo : galerie ──
-  const handlePickPhoto = useCallback(async (type: PhotoType) => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission requise', "Veuillez autoriser l'accès à la galerie photo");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.[0]) return;
-    setLoadingPhoto(true);
-    try {
-      const res = await commandesService.uploadPhoto(commande.id, result.assets[0].uri, type);
-      if (res.success) {
-        Alert.alert('Photo ajoutée', 'La photo a été enregistrée avec succès');
-        onStatusChanged?.();
-      } else {
-        Alert.alert('Erreur', res.error || "Impossible d'ajouter la photo");
-      }
-    } catch (e: any) {
-      Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
-    } finally {
-      setLoadingPhoto(false);
-    }
-  }, [commande.id, onStatusChanged]);
-
-  // ── Supprimer une preuve de livraison ──
-  const handleDeleteProofPhoto = useCallback((photoUrl: string) => {
-    Alert.alert(
-      'Supprimer la photo',
-      'Êtes-vous sûr de vouloir supprimer cette preuve ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: async () => {
-            setDeletingProofPhotoUrl(photoUrl);
-            try {
-              const res = await commandesService.deletePhoto(commande.id, photoUrl);
-              if (res.success) {
-                onStatusChanged?.();
-              } else {
-                Alert.alert('Erreur', res.error || 'Impossible de supprimer la photo');
-              }
-            } catch (e: any) {
-              Alert.alert('Erreur réseau', e?.message || 'Erreur de connexion');
-            } finally {
-              setDeletingProofPhotoUrl(null);
-            }
-          },
-        },
-      ]
-    );
-  }, [commande.id, onStatusChanged]);
-
   return (
     <>
     <ScrollView style={styles.tabContent} keyboardShouldPersistTaps="handled">
@@ -1510,58 +1637,6 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         </View>
       )}
 
-      {/* ── Section Photos d'enlèvement (ajout supplémentaire, visible dès ENLEVEE et après) ── */}
-      {['ENLEVEE', 'EN COURS DE LIVRAISON', 'LIVREE', 'ECHEC'].includes(localStatut) && (
-        <View style={styles.enleveePhotoSection}>
-          <Text style={styles.enleveePhotoTitle}>Preuves d'enlèvement</Text>
-          <Text style={styles.enleveePhotoNote}>
-            Ajoutez d'autres photos si nécessaire.
-          </Text>
-          <View style={styles.photoButtonRow}>
-            <TouchableOpacity
-              style={styles.photoButton}
-              onPress={() => handleTakePhoto('ENLEVEMENT')}
-              disabled={loadingPhoto}
-            >
-              <Ionicons name="camera" size={16} color="#6B7280" />
-              <Text style={styles.photoButtonText}>Caméra</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.photoButton}
-              onPress={() => handlePickPhoto('ENLEVEMENT')}
-              disabled={loadingPhoto}
-            >
-              <Ionicons name="images" size={16} color="#6B7280" />
-              <Text style={styles.photoButtonText}>Galerie</Text>
-            </TouchableOpacity>
-          </View>
-          {loadingPhoto && (
-            <ActivityIndicator size="small" color="#D97706" style={{ marginTop: 6 }} />
-          )}
-          {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').length > 0 && (
-            <View style={styles.preuvePhotoGrid}>
-              {(commande.photos || []).filter(p => p.type === 'ENLEVEMENT').map((photo, idx) => (
-                <View key={photo.id || idx} style={styles.photoWithDelete}>
-                  <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
-                    <Image source={{ uri: photo.url }} style={styles.preuvePhotoItem} resizeMode="cover" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deletePhotoButton}
-                    onPress={() => handleDeleteProofPhoto(photo.url)}
-                    disabled={deletingProofPhotoUrl === photo.url}
-                  >
-                    {deletingProofPhotoUrl === photo.url
-                      ? <ActivityIndicator size="small" color="#FFFFFF" />
-                      : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
-                    }
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
-
       {/* ── Section Rapports & Réserves (facultatif) ── */}
       {(canRapportEnlev || canRapportLiv) && (
         <View style={styles.rapportSection}>
@@ -1743,89 +1818,7 @@ const ActionsTab: React.FC<{ commande: Commande; onStatusChanged?: () => void }>
         </View>
       )}
 
-      {/* ── Preuves de livraison (statut LIVREE uniquement) ── */}
-      {isCompleted && (
-        <View style={styles.preuveSection}>
-          <Text style={styles.preuveSectionTitle}>Preuves de livraison</Text>
-          <Text style={styles.preuveSectionNote}>
-            Ajoutez des photos de confirmation (colis déposé, etc.)
-          </Text>
-          <View style={styles.photoButtonRow}>
-            <TouchableOpacity
-              style={[styles.photoButton, styles.photoButtonGreen]}
-              onPress={() => handleTakePhoto('LIVRAISON')}
-              disabled={loadingPhoto}
-            >
-              <Ionicons name="camera" size={18} color="#059669" />
-              <Text style={[styles.photoButtonText, { color: '#059669' }]}>Prendre une photo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.photoButton, styles.photoButtonGreen]}
-              onPress={() => handlePickPhoto('LIVRAISON')}
-              disabled={loadingPhoto}
-            >
-              <Ionicons name="images" size={18} color="#059669" />
-              <Text style={[styles.photoButtonText, { color: '#059669' }]}>Depuis la galerie</Text>
-            </TouchableOpacity>
-          </View>
-          {loadingPhoto && (
-            <View style={{ alignItems: 'center', marginTop: 8 }}>
-              <ActivityIndicator size="small" color="#059669" />
-              <Text style={styles.preuveSectionNote}>Envoi en cours...</Text>
-            </View>
-          )}
-          {/* Photos de preuve + signature côte à côte */}
-          {(commande.photos && commande.photos.filter(p => PROOF_LIVRAISON_TYPES.includes(p.type)).length > 0) || commande.signatureClient ? (
-            <View style={styles.preuveRowContainer}>
-              {/* Grille photos */}
-              {commande.photos && commande.photos.filter(p => PROOF_LIVRAISON_TYPES.includes(p.type)).length > 0 && (
-                <View style={styles.preuvePhotosCol}>
-                  <View style={styles.preuvePhotoGrid}>
-                    {commande.photos
-                      .filter(p => PROOF_LIVRAISON_TYPES.includes(p.type))
-                      .map((photo, idx) => (
-                        <View key={photo.id || idx} style={styles.photoWithDelete}>
-                          <TouchableOpacity onPress={() => setViewerUrl(photo.url)} activeOpacity={0.85}>
-                            <Image
-                              source={{ uri: photo.url }}
-                              style={styles.preuvePhotoItem}
-                              resizeMode="cover"
-                            />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.deletePhotoButton}
-                            onPress={() => handleDeleteProofPhoto(photo.url)}
-                            disabled={deletingProofPhotoUrl === photo.url}
-                          >
-                            {deletingProofPhotoUrl === photo.url
-                              ? <ActivityIndicator size="small" color="#FFFFFF" />
-                              : <Ionicons name="trash-outline" size={12} color="#FFFFFF" />
-                            }
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                  </View>
-                </View>
-              )}
-              {/* Signature à droite */}
-              {commande.signatureClient && (
-                <View style={styles.signatureDisplayBlock}>
-                  <Text style={styles.signatureDisplayLabel}>✍️ Signature</Text>
-                  <TouchableOpacity onPress={() => setViewerUrl(commande.signatureClient!)} activeOpacity={0.85}>
-                    <Image
-                      source={{ uri: commande.signatureClient }}
-                      style={styles.signatureDisplayImage}
-                      resizeMode="contain"
-                    />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ) : null}
-          <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
-        </View>
-      )}
-
+      <PhotoViewer url={viewerUrl} onClose={() => setViewerUrl(null)} />
     </ScrollView>
 
     {/* ── Modal Photos obligatoires avant ENLEVEE ── */}
@@ -2121,30 +2114,24 @@ const styles = StyleSheet.create({
     padding: 16,
   },
 
-  // Informations compactes
+  // Informations compactes (palette de l'écran : bleu #3B82F6, gris)
   ciChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  ciChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5 },
-  ciChipStrong: { backgroundColor: '#FEF3C7' },
-  ciChipText: { fontSize: 13, color: '#1E3A8A', fontWeight: '500' },
-  ciChipTextStrong: { color: '#92400E', fontWeight: '700' },
-  ciCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, marginBottom: 12 },
+  ciChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F3F4F6', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  ciChipStrong: { backgroundColor: '#FFFBEB', borderWidth: 1, borderColor: '#FDE68A' },
+  ciChipText: { fontSize: 13, color: '#374151' },
+  ciChipTextStrong: { color: '#D97706', fontWeight: '700' },
+  ciCard: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 12, marginBottom: 12 },
   ciCardHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  ciStep: { backgroundColor: '#1D4ED8', color: '#FFFFFF', fontWeight: '700', fontSize: 13, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
-  ciKind: { fontSize: 12, fontWeight: '700', color: '#6B7280', letterSpacing: 0.5, marginBottom: 4 },
-  ciBody: { flexDirection: 'row', gap: 12 },
+  ciStep: { backgroundColor: '#3B82F6', color: '#FFFFFF', fontWeight: '700', fontSize: 12, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' },
+  ciKind: { fontSize: 12, fontWeight: '600', color: '#6B7280', letterSpacing: 0.4, marginBottom: 4 },
+  ciBody: { flexDirection: 'row', gap: 10 },
   ciBodyText: { flex: 1 },
-  ciName: { fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 2 },
-  ciAddress: { fontSize: 15, color: '#2563EB' },
-  ciPhone: { fontSize: 15, color: '#2563EB', marginTop: 4 },
+  ciName: { fontSize: 16, fontWeight: '600', color: '#111827', marginBottom: 4 },
+  ciAddress: { fontSize: 14, color: '#3B82F6', textDecorationLine: 'underline', marginBottom: 4 },
+  ciPhone: { fontSize: 14, color: '#3B82F6', marginBottom: 4 },
   ciMuted: { fontSize: 13, color: '#6B7280', marginTop: 4 },
-  ciButtons: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  ciBtnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#1D4ED8', borderRadius: 10, paddingVertical: 11 },
-  ciBtnDisabled: { opacity: 0.5 },
-  ciBtnPrimaryText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
-  ciBtnSecondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#DBEAFE', borderRadius: 10, paddingVertical: 11 },
-  ciBtnSecondaryText: { color: '#1E3A8A', fontWeight: '700', fontSize: 15 },
   ciArticleRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  ciArticleLabel: { fontSize: 14, color: '#374151' },
+  ciArticleLabel: { fontSize: 14, color: '#6B7280' },
   ciArticleDims: { fontSize: 14, color: '#111827', fontWeight: '600' },
   ciRemarques: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
   ciRemarquesText: { fontSize: 14, color: '#111827' },
