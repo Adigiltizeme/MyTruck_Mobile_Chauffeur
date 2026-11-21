@@ -137,7 +137,9 @@ export interface Commande {
   statutLivraison: StatutLivraison;
   dateCommande: string;
   dateLivraison: string;
-  heureRetrait?: string;
+  heureRetrait?: string | null;
+  // Offre spéciale (ex. sapin de Noël) : créneau et heure de retrait imposés
+  offreSpeciale?: { id: string; code: string; nom: string } | null;
   heureLivraison?: string;
 
   // ✅ Dates structure (comme version web)

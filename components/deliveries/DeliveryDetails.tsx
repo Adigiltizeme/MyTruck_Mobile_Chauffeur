@@ -193,7 +193,7 @@ const StopCard: React.FC<{
   );
 };
 
-const MagasinStop: React.FC<{ step: string; kind: string; magasin?: Commande['magasin']; contact?: string }> = ({ step, kind, magasin, contact }) => (
+const MagasinStop: React.FC<{ step: string; kind: string; magasin?: Commande['magasin']; contact?: string; children?: React.ReactNode }> = ({ step, kind, magasin, contact, children }) => (
   <StopCard
     step={step}
     kind={kind}
@@ -203,7 +203,9 @@ const MagasinStop: React.FC<{ step: string; kind: string; magasin?: Commande['ma
     addressCity={joinAddress(magasin?.codePostal, magasin?.ville)}
     phone={magasin?.telephone}
     contact={contact}
-  />
+  >
+    {children}
+  </StopCard>
 );
 
 const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
@@ -223,6 +225,7 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
         <Chip icon="calendar-outline" text={[dateLabel, commande.livraison?.creneau].filter(Boolean).join(' · ') || 'Date à définir'} />
         {!!commande.livraison?.vehicule && <Chip icon="cube-outline" text={commande.livraison.vehicule} />}
         <Chip icon="people-outline" text={`${commande.livraison?.equipiers ?? 0} équipier(s)`} />
+        {!!commande.offreSpeciale && <Chip icon="gift-outline" text={commande.offreSpeciale.nom} strong />}
       </View>
 
       {isCession ? (
@@ -232,7 +235,13 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
         </>
       ) : (
         <>
-          <MagasinStop step="01" kind="RETRAIT · MAGASIN" magasin={commande.magasin} contact={commande.prenomVendeur || commande.magasin?.manager} />
+          <MagasinStop step="01" kind="RETRAIT · MAGASIN" magasin={commande.magasin} contact={commande.prenomVendeur || commande.magasin?.manager}>
+            {!!commande.heureRetrait && (
+              <View style={styles.ciChipsRow}>
+                <Chip icon="time-outline" text={`Retrait à ${commande.heureRetrait}`} strong />
+              </View>
+            )}
+          </MagasinStop>
           <StopCard
             step="02"
             kind="LIVRAISON · CLIENT"

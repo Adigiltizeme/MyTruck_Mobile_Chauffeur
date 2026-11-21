@@ -120,6 +120,9 @@ export const DeliveryRow: React.FC<DeliveryRowProps> = ({ commande, isExpanded, 
         <View style={styles.cell}>
           <Text style={styles.cellLabel}>CRÉNEAU</Text>
           <Text style={styles.cellValue}>{commande.livraison?.creneau || 'N/A'}</Text>
+          {!!commande.heureRetrait && (
+            <Text style={styles.offreText}>{`${commande.offreSpeciale ? '🎁 ' : ''}retrait ${commande.heureRetrait}`}</Text>
+          )}
         </View>
 
         {/* VÉHICULE */}
@@ -194,6 +197,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     marginBottom: 4,
+  },
+  offreText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#047857',
   },
   cellValue: {
     fontSize: 14,

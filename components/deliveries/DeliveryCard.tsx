@@ -102,6 +102,12 @@ export const DeliveryCard: React.FC<DeliveryCardProps> = ({ commande, isExpanded
           <View style={styles.gridItem}>
             <Text style={styles.gridLabel}>Créneau:</Text>
             <Text style={styles.gridValue}>{commande.livraison?.creneau || 'N/A'}</Text>
+            {(!!commande.offreSpeciale || !!commande.heureRetrait) && (
+              <Text style={styles.offreText}>
+                {[commande.offreSpeciale && `🎁 ${commande.offreSpeciale.nom}`, commande.heureRetrait && `retrait ${commande.heureRetrait}`]
+                  .filter(Boolean).join(' · ')}
+              </Text>
+            )}
           </View>
 
           {/* Magasin */}
@@ -232,6 +238,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6B7280',
     marginBottom: 2,
+  },
+  offreText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#047857',
+    marginTop: 2,
   },
   gridValue: {
     fontSize: 14,
