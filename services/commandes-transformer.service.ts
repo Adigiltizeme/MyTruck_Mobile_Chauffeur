@@ -73,6 +73,8 @@ export const commandesTransformerService = {
           categories: rawArticle.categories || [],
           dimensions,
           autresArticles: rawArticle.autresArticles || 0,
+          // Poids unitaire stocké (poids total saisi par le magasin ÷ nombre)
+          autresArticlesPoids: Number(rawArticle.autresArticlesPoids) || 0,
           canBeTilted: rawArticle.canBeTilted || false,
         }]
       : undefined;

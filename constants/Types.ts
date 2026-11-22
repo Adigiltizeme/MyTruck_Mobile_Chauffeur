@@ -72,6 +72,8 @@ export interface Article {
   canBeTilted?: boolean;
   dimensions?: ArticleDimension[];
   autresArticles?: number;
+  /** Poids unitaire des autres articles (kg) = poids total saisi ÷ nombre */
+  autresArticlesPoids?: number;
 }
 
 export interface ArticleDimension {

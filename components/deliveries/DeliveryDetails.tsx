@@ -214,6 +214,11 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
   const article = commande.articles?.[0];
   const dimensions = Array.isArray(article?.dimensions) ? article.dimensions : [];
   const autres = article?.autresArticles ?? 0;
+  // Poids total : articles dimensionnés (poids × quantité) + autres articles (nombre × poids unitaire)
+  const poidsTotal = Math.round((
+    dimensions.reduce((sum, d) => sum + (Number(d.poids) || 0) * (Number(d.quantite) || 1), 0)
+    + autres * (Number(article?.autresArticlesPoids) || 0)
+  ) * 100) / 100;
   const dateLabel = commande.dateLivraison
     ? format(new Date(commande.dateLivraison), 'EEE d MMM', { locale: fr })
     : '';
@@ -277,6 +282,12 @@ const InfoTab: React.FC<{ commande: Commande }> = ({ commande }) => {
             </Text>
           </View>
         ))}
+        {poidsTotal > 0 && (
+          <View style={styles.ciArticleRow}>
+            <Text style={styles.ciArticleLabel}>Poids total</Text>
+            <Text style={styles.ciArticleDims}>{`${poidsTotal} kg`}</Text>
+          </View>
+        )}
         {!!article?.details && <Text style={styles.ciMuted}>{article.details}</Text>}
         {!!article?.canBeTilted && <Text style={styles.ciMuted}>Peut être couché</Text>}
       </View>
